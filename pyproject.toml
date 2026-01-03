@@ -18,6 +18,9 @@ dependencies = [
     "python-dotenv",
     "wandb",
     "einops",
+    "the-well",
+    "fsspec",
+    "h5py",
 ]
 
 [project.optional-dependencies]
