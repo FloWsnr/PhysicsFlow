@@ -1,0 +1,100 @@
+################################################################
+########### Dataset parameters ############################
+################################################################
+dataset:
+  name: my_dataset # name of the dataset (useful if you have multiple datasets)
+  input_dim: 128 # input dimension
+  target_dim: 128 # target dimension
+  train_split: 0.8 # train/val split
+  normalize: true # if true, normalize the data to zero mean and unit variance
+
+################################################################
+########### Simulation parameters ############################
+################################################################
+time_limit: "24:00:00"
+
+checkpoint:
+  checkpoint_name: null # null, "latest", "best", or number of epoch to load
+
+  # if true, load optimizer and lr scheduler states from checkpoint
+  # if false, only load model weights, and reset optimizer and lr scheduler states. This is useful for fine-tuning.
+  restart: true
+
+################################################################
+########### General parameters ############################
+################################################################
+mem_budget: 1 # memory budget in percent of total memory. # if below 1, use gradient checkpointing
+seed: 42
+batch_size: 64 # batch size per GPU!!!!
+total_updates: 600e3 # number of batches to use for training
+updates_per_epoch: 1000 # number of updates per epoch
+checkpoint_every_updates: 1e3 # number of updates between checkpoints
+
+amp: true # use automatic mixed precision
+precision: bfloat16 # precision for automatic mixed precision (float16, bfloat16)
+compile: true # if true, use torch.compile to compile the model (PyTorch 2.0+)
+
+###############################################################
+########### Model parameters ############################ ####
+################################################################
+model:
+  name: my_model
+  type: transformer
+  num_layers: 12
+  hidden_size: 768
+  num_attention_heads: 12
+  intermediate_size: 3072
+  activation: gelu
+  layer_norm_eps: 1e-12
+  max_position_embeddings: 512
+  dropout: 0.1
+  criterion: MSE # loss function (MSE, L1)
+
+
+################################################################
+########### Dataloader parameters ############################
+################################################################
+num_workers: 16 # number of workers for dataloader per GPU
+
+################################################################
+########### Optimizer parameters ############################
+################################################################
+optimizer:
+  name: AdamW # optimizer name (AdamW, SGD)
+  # Make sure to supply all parameters required by the optimizer
+  learning_rate: 1e-4
+  weight_decay: 0.01
+  betas: [0.9, 0.999]
+
+max_grad_norm: null # null, or float for gradient clipping (stabilizes training)
+
+################################################################
+########### LRScheduler parameters ############################
+################################################################
+# Delete section to deactivate LR scheduling
+lr_scheduler:
+  first_stage:
+    name: LinearLR # linear warmup scheduler
+    start_factor: 0.001
+    end_factor: 1.0
+    num_updates: 5000 # number of updates for linear warmup
+  second_stage:
+    name: CosineAnnealingLR # cosine annealing scheduler
+    num_updates: -1 # num batches for cosine annealing, -1 means use all remaining batches to wind down
+    end_factor: 0.01 # percentage of initial learning rate to use as minimum learning rate
+  third_stage:
+    name: LinearLR # linear cool down scheduler
+    end_factor: 0
+    num_updates: 10 # number of batches for linear cool down
+
+################################################################
+########### WandB parameters ############################
+################################################################
+wandb: # run name is automatically set to directory name this file is in
+  enabled: true
+  project: my_ml_project
+  entity: my_wandb_username
+  tags:
+    - train
+    - test
+  notes: "Training my first model"
