@@ -229,3 +229,38 @@ class RMSE(MSE):
 
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         return torch.sqrt(super().forward(pred, target))
+
+
+class GenerativeLoss(nn.Module):
+    """Criterion that extracts loss from generative model output dataclass.
+
+    This is used for flow matching and diffusion models where the loss
+    is computed inside the model's forward pass and returned in the output.
+    """
+
+    def forward(self, output, target: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Extract loss from output dataclass.
+
+        Parameters
+        ----------
+        output : dataclass
+            Output from generative model containing 'loss' attribute.
+        target : torch.Tensor, optional
+            Ignored (target is already used in the model's forward pass).
+
+        Returns
+        -------
+        torch.Tensor
+            The pre-computed loss from the model.
+
+        Raises
+        ------
+        ValueError
+            If output doesn't have a 'loss' attribute.
+        """
+        if hasattr(output, "loss"):
+            return output.loss
+        raise ValueError(
+            "Output must have 'loss' attribute. "
+            "Expected output from FlowMatchingModel or DiffusionModel."
+        )

@@ -325,10 +325,11 @@ class Trainer:
         log_interval = max(1, 10 ** math.floor(math.log10(max(1, n_updates // 100))))
 
         for i, data in enumerate(self.train_dataloader):
-            x = data[0]
-            target = data[1]
-            x = x.to(self.device)
-            target = target.to(self.device)
+            # Move all tensors in dict to device
+            data = {
+                k: v.to(self.device) if isinstance(v, torch.Tensor) else v
+                for k, v in data.items()
+            }
 
             self.optimizer.zero_grad()
             with torch.autocast(
@@ -336,8 +337,12 @@ class Trainer:
                 dtype=self.amp_precision,
                 enabled=self.use_amp,
             ):
-                output = self.model(x)
-                raw_loss = self.criterion(output, target)
+                output = self.model(data)
+                # For generative models, extract loss from output dataclass
+                if hasattr(output, "loss"):
+                    raw_loss = output.loss
+                else:
+                    raw_loss = self.criterion(output, data["input_fields"])
 
             self.scaler.scale(raw_loss).backward()
             self.scaler.unscale_(self.optimizer)
@@ -350,7 +355,15 @@ class Trainer:
             self.scaler.step(self.optimizer)
             self.scaler.update()
 
-            current_metrics = compute_metrics(output, target, self.loss_fns)
+            # For generative models, use pred/target from output if available
+            if hasattr(output, "pred") and hasattr(output, "target"):
+                current_metrics = compute_metrics(
+                    output.pred, output.target, self.loss_fns
+                )
+            else:
+                current_metrics = compute_metrics(
+                    output, data["input_fields"], self.loss_fns
+                )
             current_metrics = reduce_all_losses(current_metrics)
 
             if self.lr_scheduler is not None:

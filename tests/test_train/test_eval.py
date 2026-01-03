@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 import pytest
 
@@ -7,9 +8,29 @@ from torch.utils.data import DataLoader
 from physicsflow.train.eval import Evaluator
 
 
+@dataclass
+class SimpleOutput:
+    """Simple output dataclass for testing."""
+
+    loss: torch.Tensor
+    pred: torch.Tensor
+    target: torch.Tensor
+
+
+class SimpleModel(torch.nn.Module):
+    """Simple model that returns output dataclass."""
+
+    def forward(self, data: dict):
+        x = data["input_fields"]
+        pred = x + 0.1  # Small modification
+        target = x
+        loss = torch.nn.functional.mse_loss(pred, target)
+        return SimpleOutput(loss=loss, pred=pred, target=target)
+
+
 @pytest.fixture
 def model():
-    return torch.nn.Identity()
+    return SimpleModel()
 
 
 @pytest.fixture
@@ -25,23 +46,24 @@ def metrics():
 @pytest.fixture
 def real_dataloader() -> DataLoader:
     """Create a real PyTorch DataLoader for testing."""
-    # Create dummy data in the format expected by trainer
+    # Create dummy data in the dict format expected by evaluator
     input_data = torch.randn(4, 10, 10)
-    target_data = torch.randn(4, 10, 10)
 
-    # Create dataset with proper format
+    # Create dataset with proper dict format
     class TestDataset(torch.utils.data.Dataset):
-        def __init__(self, inputs, targets):
+        def __init__(self, inputs):
             self.inputs = inputs
-            self.targets = targets
 
         def __len__(self):
             return len(self.inputs)
 
         def __getitem__(self, idx):
-            return (self.inputs[idx], self.targets[idx])
+            return {
+                "input_fields": self.inputs[idx],
+                "constant_scalars": torch.randn(3),
+            }
 
-    dataset = TestDataset(input_data, target_data)
+    dataset = TestDataset(input_data)
     return DataLoader(dataset, batch_size=2, shuffle=False)
 
 

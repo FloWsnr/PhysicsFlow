@@ -12,6 +12,13 @@ from physicsflow.models.loss_fns import RMSE
 @pytest.fixture
 def real_model() -> nn.Module:
     """Create a real PyTorch model for testing."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class SimpleOutput:
+        loss: torch.Tensor
+        pred: torch.Tensor
+        target: torch.Tensor
 
     class SimpleModel(nn.Module):
         def __init__(self):
@@ -19,8 +26,12 @@ def real_model() -> nn.Module:
             self.param = nn.Parameter(torch.tensor([1.0]))
             self.layer = nn.Identity()
 
-        def forward(self, x):
-            return self.layer(x) + self.param
+        def forward(self, data: dict):
+            x = data["input_fields"]
+            pred = self.layer(x) + self.param
+            target = x  # Use input as target for simplicity
+            loss = torch.nn.functional.mse_loss(pred, target)
+            return SimpleOutput(loss=loss, pred=pred, target=target)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SimpleModel()
@@ -51,23 +62,24 @@ def real_lr_scheduler(
 @pytest.fixture
 def real_dataloader() -> DataLoader:
     """Create a real PyTorch DataLoader for testing."""
-    # Create dummy data in the format expected by trainer
+    # Create dummy data in the dict format expected by trainer
     input_data = torch.randn(4, 10, 10)
-    target_data = torch.randn(4, 10, 10)
 
-    # Create dataset with proper format
+    # Create dataset with proper dict format
     class TestDataset(torch.utils.data.Dataset):
-        def __init__(self, inputs, targets):
+        def __init__(self, inputs):
             self.inputs = inputs
-            self.targets = targets
 
         def __len__(self):
             return len(self.inputs)
 
         def __getitem__(self, idx):
-            return (self.inputs[idx], self.targets[idx])
+            return {
+                "input_fields": self.inputs[idx],
+                "constant_scalars": torch.randn(3),
+            }
 
-    dataset = TestDataset(input_data, target_data)
+    dataset = TestDataset(input_data)
     return DataLoader(dataset, batch_size=2, shuffle=False)
 
 

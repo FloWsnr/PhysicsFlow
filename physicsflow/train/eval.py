@@ -108,19 +108,28 @@ class Evaluator:
             if (i + 1) % log_interval == 0 or i == 0:
                 self.log_msg(f"Batch {i + 1}/{n_batches}")
 
-            x = data[0]
-            target = data[1]
-            x = x.to(self.device)
-            target = target.to(self.device)
+            # Move all tensors in dict to device
+            data = {
+                k: v.to(self.device) if isinstance(v, torch.Tensor) else v
+                for k, v in data.items()
+            }
 
             with torch.autocast(
                 device_type=self.device.type,
                 dtype=self.amp_precision,
                 enabled=self.use_amp,
             ):
-                y = self.model(x)
+                output = self.model(data)
 
-            current_metrics = compute_metrics(y, target, self.metrics)
+            # For generative models, use pred/target from output if available
+            if hasattr(output, "pred") and hasattr(output, "target"):
+                current_metrics = compute_metrics(
+                    output.pred, output.target, self.metrics
+                )
+            else:
+                current_metrics = compute_metrics(
+                    output, data["input_fields"], self.metrics
+                )
 
             current_metrics = reduce_all_losses(current_metrics)
             for metric_name, metric_value in current_metrics.items():
