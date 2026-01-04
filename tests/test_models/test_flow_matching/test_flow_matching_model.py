@@ -3,16 +3,16 @@
 import pytest
 import torch
 
+from physicsflow.models.backbone import MLPBackbone
 from physicsflow.models.flow_matching import (
     FlowMatchingModel,
     FlowMatchingOutput,
-    PlaceholderVelocityNet,
 )
 
 
 @pytest.fixture
 def velocity_net():
-    return PlaceholderVelocityNet(
+    return MLPBackbone(
         in_channels=3,
         spatial_size=(8, 8),
         temporal_size=4,
@@ -23,7 +23,7 @@ def velocity_net():
 
 @pytest.fixture
 def velocity_net_no_cond():
-    return PlaceholderVelocityNet(
+    return MLPBackbone(
         in_channels=3,
         spatial_size=(8, 8),
         temporal_size=4,
@@ -45,7 +45,7 @@ def sample_data():
     }
 
 
-class TestPlaceholderVelocityNet:
+class TestMLPBackbone:
     def test_output_shape(self, velocity_net):
         x_t = torch.randn(2, 3, 4, 8, 8)
         t = torch.tensor([0.5, 0.5])

@@ -16,7 +16,6 @@ from physicsflow.models.flow_matching.schedulers import (
 from physicsflow.models.flow_matching.flow_matching_model import (
     FlowMatchingOutput,
     FlowMatchingModel,
-    PlaceholderVelocityNet,
 )
 
 __all__ = [
@@ -31,5 +30,4 @@ __all__ = [
     # Model
     "FlowMatchingOutput",
     "FlowMatchingModel",
-    "PlaceholderVelocityNet",
 ]

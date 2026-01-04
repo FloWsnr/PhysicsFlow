@@ -14,7 +14,6 @@ from physicsflow.models.diffusion.schedules import (
 from physicsflow.models.diffusion.diffusion_model import (
     DiffusionOutput,
     DiffusionModel,
-    PlaceholderDenoiser,
 )
 
 __all__ = [
@@ -27,5 +26,4 @@ __all__ = [
     # Model
     "DiffusionOutput",
     "DiffusionModel",
-    "PlaceholderDenoiser",
 ]

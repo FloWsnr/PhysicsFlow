@@ -3,16 +3,16 @@
 import pytest
 import torch
 
+from physicsflow.models.backbone import MLPBackbone
 from physicsflow.models.diffusion import (
     DiffusionModel,
     DiffusionOutput,
-    PlaceholderDenoiser,
 )
 
 
 @pytest.fixture
 def denoiser():
-    return PlaceholderDenoiser(
+    return MLPBackbone(
         in_channels=3,
         spatial_size=(8, 8),
         temporal_size=4,
@@ -23,7 +23,7 @@ def denoiser():
 
 @pytest.fixture
 def denoiser_no_cond():
-    return PlaceholderDenoiser(
+    return MLPBackbone(
         in_channels=3,
         spatial_size=(8, 8),
         temporal_size=4,
@@ -50,7 +50,7 @@ def sample_data():
     }
 
 
-class TestPlaceholderDenoiser:
+class TestMLPBackbone:
     def test_output_shape(self, denoiser):
         x_t = torch.randn(2, 3, 4, 8, 8)
         t = torch.tensor([50, 75])
@@ -153,7 +153,7 @@ class TestDiffusionModel:
 class TestDiffusionModelObjectives:
     @pytest.fixture
     def denoiser(self):
-        return PlaceholderDenoiser(
+        return MLPBackbone(
             in_channels=3,
             spatial_size=(8, 8),
             temporal_size=4,
@@ -196,7 +196,7 @@ class TestDiffusionModelObjectives:
 class TestDiffusionModelLossTypes:
     @pytest.fixture
     def denoiser(self):
-        return PlaceholderDenoiser(
+        return MLPBackbone(
             in_channels=3,
             spatial_size=(8, 8),
             temporal_size=4,
@@ -230,7 +230,7 @@ class TestDiffusionModelLossTypes:
 class TestDiffusionModelSNRWeighting:
     @pytest.fixture
     def denoiser(self):
-        return PlaceholderDenoiser(
+        return MLPBackbone(
             in_channels=3,
             spatial_size=(8, 8),
             temporal_size=4,
@@ -270,7 +270,7 @@ class TestDiffusionModelSNRWeighting:
 class TestDiffusionModelSchedules:
     @pytest.fixture
     def denoiser(self):
-        return PlaceholderDenoiser(
+        return MLPBackbone(
             in_channels=3,
             spatial_size=(8, 8),
             temporal_size=4,
