@@ -1,7 +1,7 @@
 """Embedding utilities for generative models.
 
 This module provides time embeddings and conditioning projections
-shared between flow matching and diffusion models.
+for flow matching models.
 """
 
 import math
@@ -14,15 +14,13 @@ from torch import Tensor
 def sinusoidal_embedding(t: Tensor, dim: int, max_period: float = 10000.0) -> Tensor:
     """Create sinusoidal positional embeddings for time values.
 
-    This is the standard positional embedding used in transformers
-    and diffusion models.
+    This is the standard positional embedding used in transformers.
 
     Parameters
     ----------
     t : Tensor
         Time values, shape (batch_size,) or (batch_size, 1).
-        Values are typically in [0, 1] for flow matching or
-        integer timesteps for diffusion.
+        Values are typically in [0, 1] for flow matching.
     dim : int
         Embedding dimension (should be even).
     max_period : float, optional

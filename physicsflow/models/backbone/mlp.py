@@ -1,7 +1,7 @@
 """Simple MLP backbone for testing generative models.
 
-This module provides a placeholder MLP network that can be used with both
-diffusion and flow matching models for testing and prototyping.
+This module provides a placeholder MLP network that can be used with
+flow matching models for testing and prototyping.
 """
 
 from typing import Optional
@@ -16,12 +16,11 @@ from physicsflow.models.common import sinusoidal_embedding
 class MLPBackbone(nn.Module):
     """Simple MLP backbone for generative models.
 
-    This is a placeholder implementation to verify the diffusion/flow matching
+    This is a placeholder implementation to verify the flow matching
     infrastructure works correctly. Replace with a proper architecture
     (e.g., U-Net, DiT) for actual training.
 
-    Works with both diffusion models (integer timesteps) and flow matching
-    (continuous time in [0, 1]).
+    Works with continuous time in [0, 1] for flow matching.
 
     Parameters
     ----------
@@ -73,22 +72,21 @@ class MLPBackbone(nn.Module):
         t: Tensor,
         cond: Optional[Tensor] = None,
     ) -> Tensor:
-        """Predict output (noise, velocity, or x0 depending on training objective).
+        """Predict velocity for flow matching.
 
         Parameters
         ----------
         x_t : Tensor
-            Noised samples, shape (B, C, T, H, W).
+            Interpolated samples, shape (B, C, T, H, W).
         t : Tensor
-            Time values, shape (B,).
-            Can be integer timesteps (diffusion) or floats in [0, 1] (flow matching).
+            Time values in [0, 1], shape (B,).
         cond : Tensor, optional
             Physics parameters, shape (B, cond_dim).
 
         Returns
         -------
         Tensor
-            Predicted output, shape (B, C, T, H, W).
+            Predicted velocity, shape (B, C, T, H, W).
         """
         batch_size = x_t.shape[0]
         original_shape = x_t.shape
@@ -96,12 +94,8 @@ class MLPBackbone(nn.Module):
         # Flatten spatial dimensions
         x_flat = x_t.reshape(batch_size, -1)
 
-        # Normalize time to [0, 1] range for embedding
-        # Handle both integer timesteps and continuous time
+        # Time is expected in [0, 1] for flow matching
         t_float = t.float()
-        if t_float.max() > 1.0:
-            # Integer timesteps - normalize (assume max 1000)
-            t_float = t_float / 1000.0
 
         # Sinusoidal time embedding
         t_emb = sinusoidal_embedding(t_float, self.time_embed_dim)
