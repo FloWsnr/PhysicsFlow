@@ -9,6 +9,7 @@ import torch.distributed as dist
 from torch.amp.grad_scaler import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from physicsflow.models.flow_matching.flow_matching_model import FlowMatchingOutput
 from physicsflow.train.utils.logger import setup_logger
 from physicsflow.train.utils.wandb_logger import WandbLogger
 from physicsflow.train.utils.run_utils import (
@@ -330,6 +331,8 @@ class Trainer:
                 k: v.to(self.device) if isinstance(v, torch.Tensor) else v
                 for k, v in data.items()
             }
+            x1 = data["input_fields"]
+            cond = data["constant_scalars"]
 
             self.optimizer.zero_grad()
             with torch.autocast(
@@ -337,12 +340,10 @@ class Trainer:
                 dtype=self.amp_precision,
                 enabled=self.use_amp,
             ):
-                output = self.model(data)
-                # For generative models, extract loss from output dataclass
-                if hasattr(output, "loss"):
-                    raw_loss = output.loss
-                else:
-                    raw_loss = self.criterion(output, data["input_fields"])
+                output: FlowMatchingOutput = self.model(x1, cond)
+                raw_loss = self.criterion(
+                    output.predicted_velocity, output.target_velocity
+                )
 
             self.scaler.scale(raw_loss).backward()
             self.scaler.unscale_(self.optimizer)
@@ -355,15 +356,11 @@ class Trainer:
             self.scaler.step(self.optimizer)
             self.scaler.update()
 
-            # For generative models, use pred/target from output if available
-            if hasattr(output, "pred") and hasattr(output, "target"):
-                current_metrics = compute_metrics(
-                    output.pred, output.target, self.loss_fns
-                )
-            else:
-                current_metrics = compute_metrics(
-                    output, data["input_fields"], self.loss_fns
-                )
+            current_metrics = compute_metrics(
+                output.predicted_velocity,
+                output.target_velocity,
+                self.loss_fns,
+            )
             current_metrics = reduce_all_losses(current_metrics)
 
             if self.lr_scheduler is not None:

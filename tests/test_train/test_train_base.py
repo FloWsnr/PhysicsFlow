@@ -6,7 +6,18 @@ from torch.utils.data import DataLoader
 from torch.amp.grad_scaler import GradScaler
 
 from physicsflow.train.train_base import Trainer, TrainingState
-from physicsflow.models.loss_fns import RMSE
+
+
+class RMSE(nn.Module):
+    """Simple RMSE loss for testing."""
+
+    def __init__(self, dims=None):
+        super().__init__()
+        self.dims = dims
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        mse = (pred - target).pow(2).mean(dim=self.dims)
+        return torch.sqrt(mse)
 
 
 @pytest.fixture
@@ -17,8 +28,16 @@ def real_model() -> nn.Module:
     @dataclass
     class SimpleOutput:
         loss: torch.Tensor
-        pred: torch.Tensor
-        target: torch.Tensor
+        predicted_velocity: torch.Tensor
+        target_velocity: torch.Tensor
+
+        @property
+        def pred(self):
+            return self.predicted_velocity
+
+        @property
+        def target(self):
+            return self.target_velocity
 
     class SimpleModel(nn.Module):
         def __init__(self):
@@ -26,12 +45,13 @@ def real_model() -> nn.Module:
             self.param = nn.Parameter(torch.tensor([1.0]))
             self.layer = nn.Identity()
 
-        def forward(self, data: dict):
-            x = data["input_fields"]
-            pred = self.layer(x) + self.param
-            target = x  # Use input as target for simplicity
+        def forward(self, x_1: torch.Tensor, cond: torch.Tensor):
+            pred = self.layer(x_1) + self.param
+            target = x_1  # Use input as target for simplicity
             loss = torch.nn.functional.mse_loss(pred, target)
-            return SimpleOutput(loss=loss, pred=pred, target=target)
+            return SimpleOutput(
+                loss=loss, predicted_velocity=pred, target_velocity=target
+            )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SimpleModel()

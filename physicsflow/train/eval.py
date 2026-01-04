@@ -13,6 +13,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.distributed as dist
 
+from physicsflow.models.flow_matching.flow_matching_model import FlowMatchingOutput
 from physicsflow.train.utils.run_utils import compute_metrics, reduce_all_losses
 from physicsflow.train.utils.logger import setup_logger
 
@@ -113,23 +114,19 @@ class Evaluator:
                 k: v.to(self.device) if isinstance(v, torch.Tensor) else v
                 for k, v in data.items()
             }
+            t1 = data["input_fields"]
+            cond = data["constant_scalars"]
 
             with torch.autocast(
                 device_type=self.device.type,
                 dtype=self.amp_precision,
                 enabled=self.use_amp,
             ):
-                output = self.model(data)
+                output: FlowMatchingOutput = self.model(t1, cond)
 
-            # For generative models, use pred/target from output if available
-            if hasattr(output, "pred") and hasattr(output, "target"):
-                current_metrics = compute_metrics(
-                    output.pred, output.target, self.metrics
-                )
-            else:
-                current_metrics = compute_metrics(
-                    output, data["input_fields"], self.metrics
-                )
+            current_metrics = compute_metrics(
+                output.predicted_velocity, output.target_velocity, self.metrics
+            )
 
             current_metrics = reduce_all_losses(current_metrics)
             for metric_name, metric_value in current_metrics.items():

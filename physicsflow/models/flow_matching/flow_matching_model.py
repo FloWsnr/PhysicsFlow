@@ -9,7 +9,6 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 
 from physicsflow.models.flow_matching.schedulers import BaseScheduler, get_scheduler
@@ -21,8 +20,6 @@ class FlowMatchingOutput:
 
     Attributes
     ----------
-    loss : Tensor
-        Training loss (MSE between predicted and target velocity).
     predicted_velocity : Tensor
         Model's velocity prediction.
     target_velocity : Tensor
@@ -31,19 +28,9 @@ class FlowMatchingOutput:
         Noised samples at time t.
     """
 
-    loss: Tensor
     predicted_velocity: Tensor
     target_velocity: Tensor
     x_t: Tensor
-
-    # Aliases for compatibility with trainer metrics
-    @property
-    def pred(self) -> Tensor:
-        return self.predicted_velocity
-
-    @property
-    def target(self) -> Tensor:
-        return self.target_velocity
 
 
 class FlowMatchingModel(nn.Module):
@@ -89,7 +76,9 @@ class FlowMatchingModel(nn.Module):
         else:
             self.scheduler = scheduler
 
-    def forward(self, data: dict[str, Tensor]) -> FlowMatchingOutput:
+    def forward(
+        self, x_1: torch.Tensor, cond: Optional[torch.Tensor] = None
+    ) -> FlowMatchingOutput:
         """Forward pass for training.
 
         Computes the flow matching loss:
@@ -97,19 +86,16 @@ class FlowMatchingModel(nn.Module):
 
         Parameters
         ----------
-        data : dict
-            Dictionary containing:
-            - 'input_fields': Target data (x_1), shape (B, C, T, H, W)
-            - 'constant_scalars': Physics parameters, shape (B, num_params)
+        x_1 : Tensor
+            Target data samples, shape (B, C, T, H, W).
+        cond : Tensor, optional
+            Physics parameters, shape (B, num_params).
 
         Returns
         -------
         FlowMatchingOutput
             Dataclass with loss, predicted_velocity, target_velocity, x_t.
         """
-        x_1 = data["input_fields"]
-        cond = data.get("constant_scalars", None)
-
         batch_size = x_1.shape[0]
         device = x_1.device
         dtype = x_1.dtype
@@ -127,11 +113,7 @@ class FlowMatchingModel(nn.Module):
         # Predict velocity
         v_pred = self.velocity_net(x_t, t, cond)
 
-        # Compute MSE loss
-        loss = F.mse_loss(v_pred, v_target)
-
         return FlowMatchingOutput(
-            loss=loss,
             predicted_velocity=v_pred,
             target_velocity=v_target,
             x_t=x_t,
@@ -194,5 +176,3 @@ class FlowMatchingModel(nn.Module):
                 raise ValueError(f"Unknown integration method: {method}")
 
         return x
-
-

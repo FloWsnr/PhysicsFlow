@@ -13,19 +13,26 @@ class SimpleOutput:
     """Simple output dataclass for testing."""
 
     loss: torch.Tensor
-    pred: torch.Tensor
-    target: torch.Tensor
+    predicted_velocity: torch.Tensor
+    target_velocity: torch.Tensor
+
+    @property
+    def pred(self):
+        return self.predicted_velocity
+
+    @property
+    def target(self):
+        return self.target_velocity
 
 
 class SimpleModel(torch.nn.Module):
     """Simple model that returns output dataclass."""
 
-    def forward(self, data: dict):
-        x = data["input_fields"]
-        pred = x + 0.1  # Small modification
-        target = x
+    def forward(self, x_1: torch.Tensor, cond: torch.Tensor):
+        pred = x_1 + 0.1  # Small modification
+        target = x_1
         loss = torch.nn.functional.mse_loss(pred, target)
-        return SimpleOutput(loss=loss, pred=pred, target=target)
+        return SimpleOutput(loss=loss, predicted_velocity=pred, target_velocity=target)
 
 
 @pytest.fixture

@@ -76,30 +76,50 @@ class TestMLPBackbone:
 
 class TestFlowMatchingModel:
     def test_forward_output_type(self, flow_model, sample_data):
-        output = flow_model(sample_data)
+        x_1 = sample_data["input_fields"]
+        cond = sample_data["constant_scalars"]
+        output = flow_model(x_1, cond)
         assert isinstance(output, FlowMatchingOutput)
 
-    def test_forward_loss_shape(self, flow_model, sample_data):
-        output = flow_model(sample_data)
-        assert output.loss.shape == ()
-        assert output.loss.requires_grad
+    def test_forward_loss_computation(self, flow_model, sample_data):
+        """Test that loss can be computed from predicted/target velocities."""
+        x_1 = sample_data["input_fields"]
+        cond = sample_data["constant_scalars"]
+        output = flow_model(x_1, cond)
+        # Loss is computed externally from predicted and target velocities
+        loss = torch.nn.functional.mse_loss(
+            output.predicted_velocity, output.target_velocity
+        )
+        assert loss.shape == ()
+        assert loss.requires_grad
 
     def test_forward_velocity_shapes(self, flow_model, sample_data):
-        output = flow_model(sample_data)
+        x_1 = sample_data["input_fields"]
+        cond = sample_data["constant_scalars"]
+        output = flow_model(x_1, cond)
         expected_shape = sample_data["input_fields"].shape
         assert output.predicted_velocity.shape == expected_shape
         assert output.target_velocity.shape == expected_shape
         assert output.x_t.shape == expected_shape
 
-    def test_forward_pred_target_aliases(self, flow_model, sample_data):
-        """Test that pred and target aliases work for trainer compatibility."""
-        output = flow_model(sample_data)
-        assert torch.equal(output.pred, output.predicted_velocity)
-        assert torch.equal(output.target, output.target_velocity)
+    def test_forward_velocities_exist(self, flow_model, sample_data):
+        """Test that predicted/target velocities are returned."""
+        x_1 = sample_data["input_fields"]
+        cond = sample_data["constant_scalars"]
+        output = flow_model(x_1, cond)
+        assert hasattr(output, "predicted_velocity")
+        assert hasattr(output, "target_velocity")
+        assert output.predicted_velocity is not None
+        assert output.target_velocity is not None
 
     def test_forward_gradient_flow(self, flow_model, sample_data):
-        output = flow_model(sample_data)
-        output.loss.backward()
+        x_1 = sample_data["input_fields"]
+        cond = sample_data["constant_scalars"]
+        output = flow_model(x_1, cond)
+        loss = torch.nn.functional.mse_loss(
+            output.predicted_velocity, output.target_velocity
+        )
+        loss.backward()
 
         for param in flow_model.parameters():
             assert param.grad is not None
@@ -134,20 +154,26 @@ class TestFlowMatchingModel:
 
     def test_different_schedulers(self, velocity_net, sample_data):
         """Test that all schedulers work."""
+        x_1 = sample_data["input_fields"]
+        cond = sample_data["constant_scalars"]
         for scheduler_name in ["cond_ot", "cosine", "linear_vp", "polynomial"]:
             model = FlowMatchingModel(velocity_net, scheduler=scheduler_name)
-            output = model(sample_data)
-            assert output.loss.shape == ()
-            assert torch.isfinite(output.loss)
+            output = model(x_1, cond)
+            loss = torch.nn.functional.mse_loss(
+                output.predicted_velocity, output.target_velocity
+            )
+            assert loss.shape == ()
+            assert torch.isfinite(loss)
 
     def test_without_conditioning(self, velocity_net_no_cond):
         """Test model works without conditioning."""
         model = FlowMatchingModel(velocity_net_no_cond, scheduler="cond_ot")
-        data = {
-            "input_fields": torch.randn(2, 3, 4, 8, 8),
-        }
-        output = model(data)
-        assert output.loss.shape == ()
+        x_1 = torch.randn(2, 3, 4, 8, 8)
+        output = model(x_1, cond=None)
+        loss = torch.nn.functional.mse_loss(
+            output.predicted_velocity, output.target_velocity
+        )
+        assert loss.shape == ()
 
 
 class TestFlowMatchingModelIntegration:
@@ -156,8 +182,12 @@ class TestFlowMatchingModelIntegration:
         optimizer = torch.optim.Adam(flow_model.parameters(), lr=1e-3)
 
         # Forward pass
-        output = flow_model(sample_data)
-        loss = output.loss
+        x_1 = sample_data["input_fields"]
+        cond = sample_data["constant_scalars"]
+        output = flow_model(x_1, cond)
+        loss = torch.nn.functional.mse_loss(
+            output.predicted_velocity, output.target_velocity
+        )
 
         # Backward pass
         optimizer.zero_grad()
@@ -174,18 +204,19 @@ class TestFlowMatchingModelIntegration:
 
         # Fixed data to overfit
         torch.manual_seed(42)
-        data = {
-            "input_fields": torch.randn(2, 3, 4, 8, 8),
-            "constant_scalars": torch.randn(2, 2),
-        }
+        x_1 = torch.randn(2, 3, 4, 8, 8)
+        cond = torch.randn(2, 2)
 
         # Train for a few steps
         losses = []
         for _ in range(20):
-            output = model(data)
-            losses.append(output.loss.item())
+            output = model(x_1, cond)
+            loss = torch.nn.functional.mse_loss(
+                output.predicted_velocity, output.target_velocity
+            )
+            losses.append(loss.item())
             optimizer.zero_grad()
-            output.loss.backward()
+            loss.backward()
             optimizer.step()
 
         # Loss should generally decrease (allow some variance)
