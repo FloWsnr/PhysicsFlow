@@ -1,43 +1,32 @@
-from dataclasses import dataclass
 from pathlib import Path
 import pytest
 
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from physicsflow.train.eval import Evaluator
+from physicsflow.models.flow_matching.flow_matching_model import FlowMatchingModel
 
 
-@dataclass
-class SimpleOutput:
-    """Simple output dataclass for testing."""
+class SimpleVelocityNet(nn.Module):
+    """Simple velocity network for testing."""
 
-    loss: torch.Tensor
-    predicted_velocity: torch.Tensor
-    target_velocity: torch.Tensor
+    def __init__(self):
+        super().__init__()
+        self.param = nn.Parameter(torch.tensor([0.1]))
 
-    @property
-    def pred(self):
-        return self.predicted_velocity
-
-    @property
-    def target(self):
-        return self.target_velocity
-
-
-class SimpleModel(torch.nn.Module):
-    """Simple model that returns output dataclass."""
-
-    def forward(self, x_1: torch.Tensor, cond: torch.Tensor):
-        pred = x_1 + 0.1  # Small modification
-        target = x_1
-        loss = torch.nn.functional.mse_loss(pred, target)
-        return SimpleOutput(loss=loss, predicted_velocity=pred, target_velocity=target)
+    def forward(
+        self, x_t: torch.Tensor, t: torch.Tensor, cond: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        # Return a simple transformation of input
+        return x_t * self.param
 
 
 @pytest.fixture
 def model():
-    return SimpleModel()
+    velocity_net = SimpleVelocityNet()
+    return FlowMatchingModel(velocity_net=velocity_net, scheduler="cond_ot")
 
 
 @pytest.fixture

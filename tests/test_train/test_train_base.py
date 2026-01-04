@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 from torch.amp.grad_scaler import GradScaler
 
 from physicsflow.train.train_base import Trainer, TrainingState
+from physicsflow.models.flow_matching.flow_matching_model import FlowMatchingModel
 
 
 class RMSE(nn.Module):
@@ -20,41 +21,26 @@ class RMSE(nn.Module):
         return torch.sqrt(mse)
 
 
+class SimpleVelocityNet(nn.Module):
+    """Simple velocity network for testing."""
+
+    def __init__(self):
+        super().__init__()
+        self.param = nn.Parameter(torch.tensor([1.0]))
+        self.layer = nn.Identity()
+
+    def forward(
+        self, x_t: torch.Tensor, t: torch.Tensor, cond: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        return self.layer(x_t) + self.param
+
+
 @pytest.fixture
 def real_model() -> nn.Module:
-    """Create a real PyTorch model for testing."""
-    from dataclasses import dataclass
-
-    @dataclass
-    class SimpleOutput:
-        loss: torch.Tensor
-        predicted_velocity: torch.Tensor
-        target_velocity: torch.Tensor
-
-        @property
-        def pred(self):
-            return self.predicted_velocity
-
-        @property
-        def target(self):
-            return self.target_velocity
-
-    class SimpleModel(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.param = nn.Parameter(torch.tensor([1.0]))
-            self.layer = nn.Identity()
-
-        def forward(self, x_1: torch.Tensor, cond: torch.Tensor):
-            pred = self.layer(x_1) + self.param
-            target = x_1  # Use input as target for simplicity
-            loss = torch.nn.functional.mse_loss(pred, target)
-            return SimpleOutput(
-                loss=loss, predicted_velocity=pred, target_velocity=target
-            )
-
+    """Create a real FlowMatchingModel for testing."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SimpleModel()
+    velocity_net = SimpleVelocityNet()
+    model = FlowMatchingModel(velocity_net=velocity_net, scheduler="cond_ot")
     model.to(device)
     return model
 
