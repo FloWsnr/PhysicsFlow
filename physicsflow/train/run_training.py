@@ -17,7 +17,6 @@ import yaml
 from yaml import CLoader
 
 from physicsflow.models.model_utils import get_model
-from physicsflow.models.loss_fns import MAE, MSE, RMSE, NRMSE, VRMSE
 
 from physicsflow.data.dataloader import get_dataloader
 from physicsflow.data.dataset import get_dataset
@@ -155,20 +154,17 @@ def main(
 
     criterion = config["model"].get("criterion", "MSE")
     if criterion.lower() == "mse":
-        criterion_fn = MSE()
+        criterion_fn = torch.nn.MSELoss()
     elif criterion.lower() == "mae":
-        criterion_fn = MAE()
+        criterion_fn = torch.nn.L1Loss()
     else:
         raise ValueError(f"Unknown criterion {criterion}")
 
     # these are used for evaluation during training (Wandb logging)
     # these are NOT the loss functions used for training (see criterion)
     eval_loss_fns = {
-        "MSE": MSE(),
-        "MAE": MAE(),
-        "RMSE": RMSE(),
-        "NRMSE": NRMSE(),
-        "VRMSE": VRMSE(),
+        "MSE": torch.nn.MSELoss(),
+        "MAE": torch.nn.L1Loss(),
     }
 
     ############################################################
