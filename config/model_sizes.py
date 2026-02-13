@@ -53,7 +53,7 @@ class DiTConfig:
 # Standard DiT configurations from the original paper
 # Approximate parameter counts assume 256x256 input with patch_size=2
 DIT_CONFIGS: dict[str, DiTConfig] = {
-    # DiT-S: ~33M parameters
+    # DiT-S: ~36.7M parameters
     "DiT-S": DiTConfig(
         hidden_dim=384,
         depth=12,
@@ -66,7 +66,7 @@ DIT_CONFIGS: dict[str, DiTConfig] = {
         attn_drop=0.0,
         learnable_pos_embed=True,
     ),
-    # DiT-B: ~130M parameters
+    # DiT-B: ~129.4M parameters
     "DiT-B": DiTConfig(
         hidden_dim=768,
         depth=12,
@@ -79,7 +79,7 @@ DIT_CONFIGS: dict[str, DiTConfig] = {
         attn_drop=0.0,
         learnable_pos_embed=True,
     ),
-    # DiT-L: ~458M parameters
+    # DiT-L: ~443.1M parameters
     "DiT-L": DiTConfig(
         hidden_dim=1024,
         depth=24,
@@ -92,7 +92,7 @@ DIT_CONFIGS: dict[str, DiTConfig] = {
         attn_drop=0.0,
         learnable_pos_embed=True,
     ),
-    # DiT-XL: ~675M parameters
+    # DiT-XL: ~647.1M parameters
     "DiT-XL": DiTConfig(
         hidden_dim=1152,
         depth=28,

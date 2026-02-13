@@ -60,7 +60,6 @@ class TestDiTConfig:
                 hidden_dim=256, depth=6, num_heads=7, mlp_ratio=4.0,
                 patch_size=(2, 2), time_embed_dim=256, conditioning_type="adaln",
                 dropout=0.0, attn_drop=0.0, learnable_pos_embed=True,
-                gradient_checkpointing=False,
             )  # Not divisible
 
 
@@ -150,7 +149,6 @@ class TestDiTBackbone:
                 dropout=0.0,
                 attn_drop=0.0,
                 learnable_pos_embed=True,
-                use_gradient_checkpointing=False,
             )
             x_t = torch.randn(2, 3, 8, 32, 32)
             t = torch.rand(2)
@@ -236,7 +234,6 @@ class TestDiTBackbone:
                 dropout=0.0,
                 attn_drop=0.0,
                 learnable_pos_embed=True,
-                use_gradient_checkpointing=False,
             )
 
     def test_different_input_channels(self):
@@ -257,7 +254,6 @@ class TestDiTBackbone:
                 dropout=0.0,
                 attn_drop=0.0,
                 learnable_pos_embed=True,
-                use_gradient_checkpointing=False,
             )
             x_t = torch.randn(2, channels, 8, 32, 32)
             t = torch.rand(2)

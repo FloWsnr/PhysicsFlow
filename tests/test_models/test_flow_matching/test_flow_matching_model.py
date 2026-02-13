@@ -33,7 +33,6 @@ def velocity_net():
         dropout=0.0,
         attn_drop=0.0,
         learnable_pos_embed=True,
-        use_gradient_checkpointing=False,
     )
 
 
@@ -54,7 +53,6 @@ def velocity_net_no_cond():
         dropout=0.0,
         attn_drop=0.0,
         learnable_pos_embed=True,
-        use_gradient_checkpointing=False,
     )
 
 
