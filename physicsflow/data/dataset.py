@@ -42,6 +42,16 @@ class PhysicsDataset(WellDataset):
             restrict_indices=restrict_indices,
         )
 
+    @property
+    def input_dim(self) -> int:
+        """Number of variable field channels (C in C T H W format)."""
+        return self.metadata.n_fields
+
+    @property
+    def spatial_size(self) -> tuple[int, ...]:
+        """Spatial resolution, e.g. (H, W)."""
+        return self.metadata.spatial_resolution
+
     def __getitem__(self, index) -> dict[str, torch.Tensor]:
         well_dict, metadata = super().__getitem__(index)
 
@@ -158,19 +168,19 @@ def get_dataset(config: dict, split: str) -> PhysicsDataset:
         "rms": RMSNormalization,
     }
 
-    data_dir: str = os.environ.get("DATA_DIR")  # type: ignore
-    name: str = config.get("name")  # type: ignore
+    data_dir: str = config["data_dir"]
+    name: str = config["name"]
     path = Path(data_dir) / name / f"data/{split}"
     norm_path = path.parents[1] / "stats.yaml"
 
-    n_steps_input: int = config.get("n_steps_input")  # type: ignore
-    n_steps_output: int = config.get("n_steps_output")  # type: ignore
-    use_normalization: bool = config.get("use_normalization", True)
-    normalization_type_str: str = config.get("normalization_type", "zscore")
-    dt_stride: int | list[int] = config.get("dt_stride", 1)
-    full_trajectory_mode: bool = config.get("full_trajectory_mode", False)
-    max_rollout_steps: int = config.get("max_rollout_steps", 10000)
-    skip_steady_states: bool = config.get("skip_steady_states", False)
+    n_steps_input: int = config["n_steps_input"]
+    n_steps_output: int = config["n_steps_output"]
+    use_normalization: bool = config["use_normalization"]
+    normalization_type_str: str = config["normalization_type"]
+    dt_stride: int | list[int] = config["dt_stride"]
+    full_trajectory_mode: bool = config["full_trajectory_mode"]
+    max_rollout_steps: int = config["max_rollout_steps"]
+    skip_steady_states: bool = config["skip_steady_states"]
 
     # Get the normalization callable from the string
     normalization_type = NORMALIZATION_MAP.get(normalization_type_str.lower())
