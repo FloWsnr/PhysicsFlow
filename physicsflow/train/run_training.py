@@ -130,6 +130,11 @@ def main(
     dataset_train = get_dataset(config["dataset"], split="train")
     dataset_val = get_dataset(config["dataset"], split="valid")
 
+    spatial_downsample_size = config["dataset"].get("spatial_downsample_size", None)
+    if spatial_downsample_size is not None:
+        spatial_downsample_size = tuple(spatial_downsample_size)
+    downsample_mode = config["dataset"].get("downsample_mode", "bilinear")
+
     train_dataloader = get_dataloader(
         dataset=dataset_train,
         seed=seed,
@@ -137,6 +142,8 @@ def main(
         num_workers=num_workers,
         is_distributed=dist.is_initialized(),
         shuffle=True,
+        spatial_downsample_size=spatial_downsample_size,
+        downsample_mode=downsample_mode,
     )
     val_dataloader = get_dataloader(
         dataset=dataset_val,
@@ -145,10 +152,15 @@ def main(
         num_workers=num_workers,
         is_distributed=dist.is_initialized(),
         shuffle=False,
+        spatial_downsample_size=spatial_downsample_size,
+        downsample_mode=downsample_mode,
     )
     # populate config with dataset-dependent values (e.g. input/output dims, etc.)
     config["model"]["in_channels"] = dataset_train.input_dim
-    config["model"]["spatial_size"] = dataset_train.spatial_size
+    config["model"]["spatial_size"] = (
+        spatial_downsample_size if spatial_downsample_size is not None
+        else dataset_train.spatial_size
+    )
     config["model"]["temporal_size"] = dataset_train.n_steps_input
 
     ############################################################

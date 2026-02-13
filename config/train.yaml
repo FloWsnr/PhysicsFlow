@@ -11,6 +11,8 @@ dataset:
   full_trajectory_mode: false # if true, use full trajectories instead of windows
   max_rollout_steps: 10000 # max steps for full trajectory mode
   skip_steady_states: false # if true, skip steady-state regions
+  spatial_downsample_size: null # target spatial size (H, W) for downsampling, e.g. [32, 32]. null = no downsampling
+  downsample_mode: bilinear # interpolation mode: bilinear, nearest, bicubic, area, nearest-exact
 
 ################################################################
 ########### Simulation parameters ############################
@@ -48,7 +50,6 @@ model:
 
   cond_dim: 128 # dimension of the conditioning vector
 
-  # DiT-S backbone parameters
   hidden_dim: 384
   depth: 12
   num_heads: 6
@@ -107,7 +108,7 @@ lr_scheduler:
 ########### WandB parameters ############################
 ################################################################
 wandb: # run name is automatically set to directory name this file is in
-  enabled: true
+  enabled: false
   project: my_ml_project
   entity: my_wandb_username
   tags:
