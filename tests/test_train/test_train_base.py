@@ -71,11 +71,13 @@ def real_dataloader() -> DataLoader:
     """Create a real PyTorch DataLoader for testing."""
     # Create dummy data in the dict format expected by trainer
     input_data = torch.randn(4, 10, 10)
+    output_data = torch.randn(4, 10, 10)
 
     # Create dataset with proper dict format
     class TestDataset(torch.utils.data.Dataset):
-        def __init__(self, inputs):
+        def __init__(self, inputs, outputs):
             self.inputs = inputs
+            self.outputs = outputs
 
         def __len__(self):
             return len(self.inputs)
@@ -83,10 +85,11 @@ def real_dataloader() -> DataLoader:
         def __getitem__(self, idx):
             return {
                 "input_fields": self.inputs[idx],
+                "output_fields": self.outputs[idx],
                 "constant_scalars": torch.randn(3),
             }
 
-    dataset = TestDataset(input_data)
+    dataset = TestDataset(input_data, output_data)
     return DataLoader(dataset, batch_size=2, shuffle=False)
 
 
