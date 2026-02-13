@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from physicsflow.models.flow_matching.schedulers import BaseScheduler, get_scheduler
+from physicsflow.models.flow_matching.schedulers import BaseScheduler
 
 
 @dataclass
@@ -55,34 +55,26 @@ class FlowMatchingModel(nn.Module):
         - t: (B,) time steps
         - cond: (B, num_params) physics parameters (optional)
         And return predicted velocity of same shape as x_t.
-    scheduler : BaseScheduler or str
-        Flow matching scheduler instance or name ('cond_ot', 'cosine', etc.).
-    scheduler_kwargs : dict, optional
-        Additional arguments if scheduler is a string.
+    scheduler : BaseScheduler
+        Flow matching scheduler instance
     """
 
     def __init__(
         self,
         velocity_net: nn.Module,
-        scheduler: BaseScheduler | str = "cond_ot",
-        scheduler_kwargs: Optional[dict] = None,
+        scheduler: BaseScheduler,
     ):
         super().__init__()
         self.velocity_net = velocity_net
-
-        if isinstance(scheduler, str):
-            scheduler_kwargs = scheduler_kwargs or {}
-            self.scheduler = get_scheduler(scheduler, **scheduler_kwargs)
-        else:
-            self.scheduler = scheduler
+        self.scheduler = scheduler
 
     def forward(
         self, x_1: torch.Tensor, cond: Optional[torch.Tensor] = None
     ) -> FlowMatchingOutput:
         """Forward pass for training.
 
-        Computes the flow matching loss:
-            L = E_{t, x_0, x_1}[||v_theta(x_t, t, c) - v_target||^2]
+        Computes the predicted velocity:
+            v_theta(x_t, t, c)
 
         Parameters
         ----------
@@ -94,7 +86,7 @@ class FlowMatchingModel(nn.Module):
         Returns
         -------
         FlowMatchingOutput
-            Dataclass with loss, predicted_velocity, target_velocity, x_t.
+            Dataclass with predicted_velocity, target_velocity, x_t.
         """
         batch_size = x_1.shape[0]
         device = x_1.device
@@ -119,6 +111,10 @@ class FlowMatchingModel(nn.Module):
             x_t=x_t,
         )
 
+    @property
+    def device(self) -> torch.device:
+        return next(self.parameters()).device
+
     @torch.inference_mode()
     def sample(
         self,
@@ -126,7 +122,6 @@ class FlowMatchingModel(nn.Module):
         cond: Optional[Tensor] = None,
         num_steps: int = 100,
         method: str = "euler",
-        device: Optional[torch.device] = None,
     ) -> Tensor:
         """Generate samples by integrating the learned velocity field.
 
@@ -142,17 +137,13 @@ class FlowMatchingModel(nn.Module):
             Number of integration steps.
         method : str
             Integration method: 'euler' or 'midpoint'.
-        device : torch.device, optional
-            Device to generate samples on.
 
         Returns
         -------
         Tensor
             Generated samples at t=1, shape (B, C, T, H, W).
         """
-        if device is None:
-            device = next(self.parameters()).device
-
+        device = self.device
         batch_size = shape[0]
         dt = 1.0 / num_steps
 
