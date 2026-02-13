@@ -16,7 +16,7 @@ from typing import (
     cast,
 )
 
-import fsspec
+import glob as globmod
 import h5py as h5
 import numpy as np
 import torch
@@ -24,7 +24,6 @@ import yaml
 from torch.utils.data import Dataset
 
 from the_well.data.utils import (
-    IO_PARAMS,
     WELL_DATASETS,
     is_dataset_in_the_well,
     maximum_stride_for_initial_index,
@@ -157,10 +156,6 @@ class WellDataset(Dataset):
             List of global indices to skip/exclude from the dataset. Only one restriction type should be used.
         restriction_seed:
             Seed used to generate restriction set. Necessary to ensure same set is sampled across runs.
-        cache_small:
-            Whether to cache small tensors in memory for faster access
-        max_cache_size:
-            Maximum numel of constant tensor to cache
         return_grid:
             Whether to return grid coordinates
         normalize_time_grid:
@@ -185,8 +180,6 @@ class WellDataset(Dataset):
         min_std:
             Minimum standard deviation for field normalization. If a field standard
             deviation is lower than this value, it is replaced by this value.
-        storage_options :
-            Option for the ffspec storage.
     """
 
     def __init__(
@@ -210,8 +203,6 @@ class WellDataset(Dataset):
         restrict_num_samples: Optional[float | int] = None,
         restrict_indices: Optional[list[int]] = None,
         restriction_seed: int = 0,
-        cache_small: bool = True,
-        max_cache_size: float = 1e9,
         return_grid: bool = True,
         normalize_time_grid: bool = True,
         boundary_return_type: str = "padding",
@@ -220,7 +211,6 @@ class WellDataset(Dataset):
         name_override: Optional[str] = None,
         transform: Optional["Augmentation"] = None,
         min_std: float = 1e-4,
-        storage_options: Optional[Dict] = None,
     ):
         super().__init__()
         assert path is not None or (
@@ -254,8 +244,6 @@ class WellDataset(Dataset):
                 str(normalization_path).removeprefix(str(trunk_path)).lstrip("./"),
             )
 
-        self.fs, _ = fsspec.url_to_fs(self.data_path, **(storage_options or {}))
-
         # Input checks
         if boundary_return_type is not None and boundary_return_type not in ["padding"]:
             raise NotImplementedError("Only padding boundary conditions supported")
@@ -283,8 +271,6 @@ class WellDataset(Dataset):
         self.boundary_return_type = boundary_return_type
         self.full_trajectory_mode = full_trajectory_mode
         self.start_output_steps_at_t = start_output_steps_at_t
-        self.cache_small = cache_small
-        self.max_cache_size = max_cache_size
         self.transform = transform
         if self.min_dt_stride < self.max_dt_stride and self.full_trajectory_mode:
             raise ValueError(
@@ -309,8 +295,8 @@ class WellDataset(Dataset):
                 "for training while full trajectory mode is implemented for validation."
             )
         # Check the directory has hdf5 that meet our exclusion criteria
-        sub_files = self.fs.glob(self.data_path + "/*.h5") + self.fs.glob(
-            self.data_path + "/*.hdf5"
+        sub_files = globmod.glob(os.path.join(self.data_path, "*.h5")) + globmod.glob(
+            os.path.join(self.data_path, "*.hdf5")
         )
         # Check filters - only use file if include_filters are present and exclude_filters are not
         if len(self.include_filters) > 0:
@@ -326,7 +312,6 @@ class WellDataset(Dataset):
         )
         self.files_paths = sub_files
         self.files_paths.sort()
-        self.caches = [{} for _ in self.files_paths]
         # Build multi-index
         self.metadata = self._build_metadata()
         # Override name if necessary for logging
@@ -335,7 +320,7 @@ class WellDataset(Dataset):
 
         # Initialize normalization classes if True
         if use_normalization and normalization_type:
-            with self.fs.open(self.normalization_path, mode="r") as f:
+            with open(self.normalization_path, mode="r") as f:
                 stats = yaml.safe_load(f)
 
             self.norm = normalization_type(
@@ -459,10 +444,7 @@ class WellDataset(Dataset):
         bcs = set()
         lowest_steps = 1e9  # Note - we should never have 1e9 steps
         for index, file in enumerate(self.files_paths):
-            with (
-                self.fs.open(file, "rb", **IO_PARAMS["fsspec_params"]) as f,
-                h5.File(f, "r", **IO_PARAMS["h5py_params"]) as _f,
-            ):
+            with h5.File(file, "r") as _f:
                 grid_type = _f.attrs["grid_type"]
                 # Run sanity checks - all files should have same ndims, size_tuple, and names
                 trajectories = int(_f.attrs["n_trajectories"])
@@ -595,10 +577,6 @@ class WellDataset(Dataset):
             n_steps_per_trajectory=self.n_steps_per_trajectory,
         )
 
-    def _check_cache(self, cache: Dict[str, Any], name: str, data: Any):
-        if self.cache_small and data.numel() < self.max_cache_size:
-            cache[name] = data
-
     def _pad_axes(
         self,
         field_data: Any,
@@ -619,7 +597,7 @@ class WellDataset(Dataset):
         return torch.tile(field_data, expand_dims)
 
     def _reconstruct_fields(
-        self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt
+        self, file: h5.File, sample_idx, time_idx, n_steps, dt
     ):
         """Reconstruct space fields starting at index sample_idx, time_idx, with
         n_steps and dt stride."""
@@ -631,30 +609,20 @@ class WellDataset(Dataset):
             for field_name in field_names:
                 field = file[order_fields][field_name]
                 use_dims = field.attrs["dim_varying"]
-                # If the field is in the cache, use it, otherwise go through read/pad
-                if field_name in cache:
-                    field_data = cache[field_name]
-                else:
-                    field_data = field
-                    # Index is built gradually since there can be different numbers of leading fields
-                    multi_index = ()
-                    if field.attrs["sample_varying"]:
-                        multi_index = multi_index + (sample_idx,)
-                    if field.attrs["time_varying"]:
-                        multi_index = multi_index + (
-                            slice(time_idx, time_idx + n_steps * dt, dt),
-                        )
-                    field_data = field_data[multi_index]
-                    field_data = torch.as_tensor(field_data)
-                    # Normalize
-                    if self.use_normalization and self.norm:
-                        field_data = self.norm.normalize(field_data, field_name)
-                    # If constant, try to cache
-                    if (
-                        not field.attrs["time_varying"]
-                        and not field.attrs["sample_varying"]
-                    ):
-                        self._check_cache(cache, field_name, field_data)
+                field_data = field
+                # Index is built gradually since there can be different numbers of leading fields
+                multi_index = ()
+                if field.attrs["sample_varying"]:
+                    multi_index = multi_index + (sample_idx,)
+                if field.attrs["time_varying"]:
+                    multi_index = multi_index + (
+                        slice(time_idx, time_idx + n_steps * dt, dt),
+                    )
+                field_data = field_data[multi_index]
+                field_data = torch.as_tensor(field_data)
+                # Normalize
+                if self.use_normalization and self.norm:
+                    field_data = self.norm.normalize(field_data, field_name)
 
                 # Expand dims
                 field_data = self._pad_axes(
@@ -672,7 +640,7 @@ class WellDataset(Dataset):
         return (variable_fields, constant_fields)
 
     def _reconstruct_scalars(
-        self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt
+        self, file: h5.File, sample_idx, time_idx, n_steps, dt
     ):
         """Reconstruct scalar values (not fields) starting at index sample_idx, time_idx, with
         n_steps and dt stride."""
@@ -681,26 +649,17 @@ class WellDataset(Dataset):
         for scalar_name in file["scalars"].attrs["field_names"]:
             scalar = file["scalars"][scalar_name]
 
-            if scalar_name in cache:
-                scalar_data = cache[scalar_name]
-            else:
-                scalar_data = scalar
-                # Build index gradually to account for different leading dims
-                multi_index = ()
-                if scalar.attrs["sample_varying"]:
-                    multi_index = multi_index + (sample_idx,)
-                if scalar.attrs["time_varying"]:
-                    multi_index = multi_index + (
-                        slice(time_idx, time_idx + n_steps * dt, dt),
-                    )
-                scalar_data = scalar_data[multi_index]
-                scalar_data = torch.as_tensor(scalar_data)
-                # If constant, try to cache
-                if (
-                    not scalar.attrs["time_varying"]
-                    and not scalar.attrs["sample_varying"]
-                ):
-                    self._check_cache(cache, scalar_name, scalar_data)
+            scalar_data = scalar
+            # Build index gradually to account for different leading dims
+            multi_index = ()
+            if scalar.attrs["sample_varying"]:
+                multi_index = multi_index + (sample_idx,)
+            if scalar.attrs["time_varying"]:
+                multi_index = multi_index + (
+                    slice(time_idx, time_idx + n_steps * dt, dt),
+                )
+            scalar_data = scalar_data[multi_index]
+            scalar_data = torch.as_tensor(scalar_data)
 
             if scalar.attrs["time_varying"]:
                 variable_scalars[scalar_name] = scalar_data
@@ -710,18 +669,15 @@ class WellDataset(Dataset):
         return (variable_scalars, constant_scalars)
 
     def _reconstruct_grids(
-        self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt
+        self, file: h5.File, sample_idx, time_idx, n_steps, dt
     ):
         """Reconstruct grid values starting at index sample_idx, time_idx, with
         n_steps and dt stride."""
         # Time
-        if "time_grid" in cache:
-            time_grid = cache["time_grid"]
-        elif file["dimensions"]["time"].attrs["sample_varying"]:
+        if file["dimensions"]["time"].attrs["sample_varying"]:
             time_grid = torch.tensor(file["dimensions"]["time"][sample_idx, :])
         else:
             time_grid = torch.tensor(file["dimensions"]["time"][:])
-            self._check_cache(cache, "time_grid", time_grid)
         # We have already sampled leading index if it existed so timegrid should be 1D
         time_grid = time_grid[time_idx : time_idx + n_steps * dt : dt]
         # Nothing should depend on absolute time - might change if we add weather
@@ -729,72 +685,61 @@ class WellDataset(Dataset):
             time_grid = time_grid - time_grid.min()
 
         # Space - TODO - support time-varying grids or non-tensor product grids
-        if "space_grid" in cache:
-            space_grid = cache["space_grid"]
-        else:
-            space_grid = []
-            sample_invariant = True
-            for dim in file["dimensions"].attrs["spatial_dims"]:
-                if file["dimensions"][dim].attrs["sample_varying"]:
-                    sample_invariant = False
-                    coords = torch.tensor(file["dimensions"][dim][sample_idx])
-                else:
-                    coords = torch.tensor(file["dimensions"][dim][:])
-                space_grid.append(coords)
-            space_grid = torch.stack(torch.meshgrid(*space_grid, indexing="ij"), -1)
-            if sample_invariant:
-                self._check_cache(cache, "space_grid", space_grid)
+        space_grid = []
+        for dim in file["dimensions"].attrs["spatial_dims"]:
+            if file["dimensions"][dim].attrs["sample_varying"]:
+                coords = torch.tensor(file["dimensions"][dim][sample_idx])
+            else:
+                coords = torch.tensor(file["dimensions"][dim][:])
+            space_grid.append(coords)
+        space_grid = torch.stack(torch.meshgrid(*space_grid, indexing="ij"), -1)
         return space_grid, time_grid
 
-    def _padding_bcs(self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt):
+    def _padding_bcs(self, file: h5.File, sample_idx, time_idx, n_steps, dt):
         """Handles BC case where BC corresponds to a specific padding type
 
         Note/TODO - currently assumes boundaries to be axis-aligned and cover the entire
         domain. This is a simplification that will need to be addressed in the future.
         """
-        if "boundary_output" in cache:
-            boundary_output = cache["boundary_output"]
-        else:
-            bcs = file["boundary_conditions"]
-            dim_indices = {
-                dim: i for i, dim in enumerate(file["dimensions"].attrs["spatial_dims"])
-            }
-            boundary_output = torch.ones(
-                self.n_spatial_dims, 2
-            )  # Open unless otherwise specified
-            for bc_name in bcs.keys():
-                bc = bcs[bc_name]
-                bc_type = bc.attrs["bc_type"].upper()  # Enum is in upper case
-                if len(bc.attrs["associated_dims"]) > 1:
-                    warnings.warn(
-                        "Only axis-aligned boundary fully supported. Boundary for axis counted as `open` or `periodic` if any part of it is and `wall` otherwise."
-                        "If this does not fit your desired usecase, set `boundary_return_type=None`.",
-                        RuntimeWarning,
-                    )
-                for dim in bc.attrs["associated_dims"]:
-                    # Check all entries at the boundary - if any `open` or `periodic`, set that. However, for wall, the full boundary must be wall
-                    first_slice = tuple(
-                        slice(None) if dim != other_dim else 0
-                        for other_dim in bc.attrs["associated_dims"]
-                    )
-                    last_slice = tuple(
-                        slice(None) if dim != other_dim else -1
-                        for other_dim in bc.attrs["associated_dims"]
-                    )
-                    agg_op = np.min if bc_type == "WALL" else np.max
-                    mask = bc["mask"][:]
-                    if agg_op(mask[first_slice]):
-                        boundary_output[dim_indices[dim]][0] = BoundaryCondition[
-                            bc_type
-                        ].value
-                    if agg_op(mask[last_slice]):
-                        boundary_output[dim_indices[dim]][1] = BoundaryCondition[
-                            bc_type
-                        ].value
-            self._check_cache(cache, "boundary_output", boundary_output)
+        bcs = file["boundary_conditions"]
+        dim_indices = {
+            dim: i for i, dim in enumerate(file["dimensions"].attrs["spatial_dims"])
+        }
+        boundary_output = torch.ones(
+            self.n_spatial_dims, 2
+        )  # Open unless otherwise specified
+        for bc_name in bcs.keys():
+            bc = bcs[bc_name]
+            bc_type = bc.attrs["bc_type"].upper()  # Enum is in upper case
+            if len(bc.attrs["associated_dims"]) > 1:
+                warnings.warn(
+                    "Only axis-aligned boundary fully supported. Boundary for axis counted as `open` or `periodic` if any part of it is and `wall` otherwise."
+                    "If this does not fit your desired usecase, set `boundary_return_type=None`.",
+                    RuntimeWarning,
+                )
+            for dim in bc.attrs["associated_dims"]:
+                # Check all entries at the boundary - if any `open` or `periodic`, set that. However, for wall, the full boundary must be wall
+                first_slice = tuple(
+                    slice(None) if dim != other_dim else 0
+                    for other_dim in bc.attrs["associated_dims"]
+                )
+                last_slice = tuple(
+                    slice(None) if dim != other_dim else -1
+                    for other_dim in bc.attrs["associated_dims"]
+                )
+                agg_op = np.min if bc_type == "WALL" else np.max
+                mask = bc["mask"][:]
+                if agg_op(mask[first_slice]):
+                    boundary_output[dim_indices[dim]][0] = BoundaryCondition[
+                        bc_type
+                    ].value
+                if agg_op(mask[last_slice]):
+                    boundary_output[dim_indices[dim]][1] = BoundaryCondition[
+                        bc_type
+                    ].value
         return boundary_output
 
-    def _reconstruct_bcs(self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt):
+    def _reconstruct_bcs(self, file: h5.File, sample_idx, time_idx, n_steps, dt):
         """Needs work to support arbitrary BCs.
 
         Currently supports finite set of boundary condition types that describe
@@ -805,7 +750,7 @@ class WellDataset(Dataset):
         #TODO generalize boundary types
         """
         if self.boundary_return_type == "padding":
-            return self._padding_bcs(file, cache, sample_idx, time_idx, n_steps, dt)
+            return self._padding_bcs(file, sample_idx, time_idx, n_steps, dt)
         else:
             raise NotImplementedError()
 
@@ -822,14 +767,7 @@ class WellDataset(Dataset):
         )  # First offset is -1
         sample_idx = local_idx // windows_per_trajectory
         time_idx = local_idx % windows_per_trajectory
-        # open hdf5 file (and cache the open object)
-        with h5.File(
-            self.fs.open(
-                self.files_paths[file_idx], "rb", **IO_PARAMS["fsspec_params"]
-            ),
-            "r",
-            **IO_PARAMS["h5py_params"],
-        ) as file:
+        with h5.File(self.files_paths[file_idx], "r") as file:
             # If we gave a stride range, decide the largest size we can use given the sample location
             dt = self.min_dt_stride
             if self.max_dt_stride > self.min_dt_stride:
@@ -853,7 +791,6 @@ class WellDataset(Dataset):
 
             data["variable_fields"], data["constant_fields"] = self._reconstruct_fields(
                 file,
-                self.caches[file_idx],
                 sample_idx,
                 time_idx,
                 self.n_steps_input + output_steps,
@@ -862,7 +799,6 @@ class WellDataset(Dataset):
             data["variable_scalars"], data["constant_scalars"] = (
                 self._reconstruct_scalars(
                     file,
-                    self.caches[file_idx],
                     sample_idx,
                     time_idx,
                     self.n_steps_input + output_steps,
@@ -873,7 +809,6 @@ class WellDataset(Dataset):
             if self.boundary_return_type is not None:
                 data["boundary_conditions"] = self._reconstruct_bcs(
                     file,
-                    self.caches[file_idx],
                     sample_idx,
                     time_idx,
                     self.n_steps_input + output_steps,
@@ -883,7 +818,6 @@ class WellDataset(Dataset):
             if self.return_grid:
                 data["space_grid"], data["time_grid"] = self._reconstruct_grids(
                     file,
-                    self.caches[file_idx],
                     sample_idx,
                     time_idx,
                     self.n_steps_input + output_steps,
@@ -999,13 +933,7 @@ class WellDataset(Dataset):
         datasets = []
         total_samples = 0
         for file_idx in range(len(self.files_paths)):
-            with h5.File(
-                self.fs.open(
-                    self.files_paths[file_idx], "rb", **IO_PARAMS["fsspec_params"]
-                ),
-                "r",
-                **IO_PARAMS["h5py_params"],
-            ) as file:
+            with h5.File(self.files_paths[file_idx], "r") as file:
                 # Load the dataset using the hdf5_to_xarray function
                 ds = hdf5_to_xarray(file, backend=backend)
                 # Ensure 'sample' dimension is always present
@@ -1062,7 +990,7 @@ class DeltaWellDataset(WellDataset):
             field_data = self.norm.normalize(field_data, field_name)
         return field_data
 
-    def _reconstruct_fields(self, file, cache, sample_idx, time_idx, n_steps, dt):
+    def _reconstruct_fields(self, file, sample_idx, time_idx, n_steps, dt):
         """Reconstruct space fields with delta transformation for output steps."""
 
         # Store the original normalization state
@@ -1073,7 +1001,7 @@ class DeltaWellDataset(WellDataset):
 
         # Call the parent method without normalization
         variable_fields, constant_fields = super()._reconstruct_fields(
-            file, cache, sample_idx, time_idx, n_steps, dt
+            file, sample_idx, time_idx, n_steps, dt
         )
 
         # Restore the original normalization state
