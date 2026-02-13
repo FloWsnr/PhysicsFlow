@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 
 from physicsflow.train.eval import Evaluator
 from physicsflow.models.flow_matching.flow_matching_model import FlowMatchingModel
+from physicsflow.models.flow_matching.schedulers import CondOTScheduler
 
 
 class SimpleVelocityNet(nn.Module):
@@ -26,7 +27,7 @@ class SimpleVelocityNet(nn.Module):
 @pytest.fixture
 def model():
     velocity_net = SimpleVelocityNet()
-    return FlowMatchingModel(velocity_net=velocity_net, scheduler="cond_ot")
+    return FlowMatchingModel(velocity_net=velocity_net, scheduler=CondOTScheduler())
 
 
 @pytest.fixture

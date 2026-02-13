@@ -3,13 +3,19 @@
 import pytest
 import torch
 
-from physicsflow.models.backbone.dit import (
+from physicsflow.models.dit import (
     DiTBackbone,
     DiTConfig,
     get_dit_config,
     list_dit_configs,
 )
 from physicsflow.models.flow_matching import FlowMatchingModel
+from physicsflow.models.flow_matching.schedulers import (
+    CondOTScheduler,
+    CosineScheduler,
+    LinearVPScheduler,
+    PolynomialScheduler,
+)
 
 
 class TestDiTConfig:
@@ -261,7 +267,7 @@ class TestDiTWithFlowMatching:
             num_heads=4,
             patch_size=(4, 4),
         )
-        return FlowMatchingModel(dit, scheduler="cond_ot")
+        return FlowMatchingModel(dit, scheduler=CondOTScheduler())
 
     @pytest.fixture
     def sample_data(self):
@@ -351,7 +357,7 @@ class TestDiTWithFlowMatching:
         x_1 = sample_data["input_fields"]
         cond = sample_data["constant_scalars"]
 
-        for scheduler in ["cond_ot", "cosine", "linear_vp", "polynomial"]:
+        for scheduler in [CondOTScheduler(), CosineScheduler(), LinearVPScheduler(), PolynomialScheduler()]:
             model = FlowMatchingModel(dit, scheduler=scheduler)
             output = model(x_1, cond)
             loss = torch.nn.functional.mse_loss(
@@ -364,21 +370,35 @@ class TestDiTWithFlowMatching:
 class TestDiTModelFactory:
     """Tests for model factory with DiT."""
 
-    def test_factory_creates_dit(self):
-        """Test factory creates DiT backbone."""
-        from physicsflow.models.model_utils import get_model
-
+    @staticmethod
+    def _base_config(**overrides):
+        """Base config with all required params."""
         config = {
-            "type": "flow_matching",
-            "backbone": "dit",
-            "dit_size": "DiT-S",
             "in_channels": 3,
             "spatial_size": [32, 32],
             "temporal_size": 8,
             "cond_dim": 5,
+            "hidden_dim": 384,
+            "depth": 12,
+            "num_heads": 6,
+            "mlp_ratio": 4.0,
             "patch_size": [4, 4],
+            "time_embed_dim": 256,
+            "conditioning_type": "adaln",
+            "dropout": 0.0,
+            "attn_drop": 0.0,
+            "learnable_pos_embed": True,
+            "gradient_checkpointing": False,
+            "scheduler": {"type": "cond_ot", "params": {}},
         }
-        model = get_model(config)
+        config.update(overrides)
+        return config
+
+    def test_factory_creates_dit(self):
+        """Test factory creates DiT backbone."""
+        from physicsflow.models.model_utils import get_model
+
+        model = get_model(self._base_config())
 
         assert isinstance(model, FlowMatchingModel)
         assert isinstance(model.velocity_net, DiTBackbone)
@@ -387,19 +407,7 @@ class TestDiTModelFactory:
         """Test factory with config overrides."""
         from physicsflow.models.model_utils import get_model
 
-        config = {
-            "type": "flow_matching",
-            "backbone": "dit",
-            "dit_size": "DiT-S",
-            "in_channels": 3,
-            "spatial_size": [32, 32],
-            "temporal_size": 8,
-            "cond_dim": 5,
-            "hidden_dim": 512,
-            "depth": 6,
-            "patch_size": [4, 4],
-        }
-        model = get_model(config)
+        model = get_model(self._base_config(hidden_dim=512, depth=6))
 
         assert model.velocity_net.hidden_dim == 512
         assert len(model.velocity_net.blocks) == 6
@@ -408,18 +416,7 @@ class TestDiTModelFactory:
         """Test factory creates cross-attention DiT."""
         from physicsflow.models.model_utils import get_model
 
-        config = {
-            "type": "flow_matching",
-            "backbone": "dit",
-            "dit_size": "DiT-S",
-            "in_channels": 3,
-            "spatial_size": [32, 32],
-            "temporal_size": 8,
-            "cond_dim": 5,
-            "conditioning_type": "cross_attention",
-            "patch_size": [4, 4],
-        }
-        model = get_model(config)
+        model = get_model(self._base_config(conditioning_type="cross_attention"))
 
         x_1 = torch.randn(2, 3, 8, 32, 32)
         cond = torch.randn(2, 5)

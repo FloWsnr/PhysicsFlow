@@ -7,6 +7,7 @@ from torch.amp.grad_scaler import GradScaler
 
 from physicsflow.train.train_base import Trainer, TrainingState
 from physicsflow.models.flow_matching.flow_matching_model import FlowMatchingModel
+from physicsflow.models.flow_matching.schedulers import CondOTScheduler
 
 
 class RMSE(nn.Module):
@@ -40,7 +41,7 @@ def real_model() -> nn.Module:
     """Create a real FlowMatchingModel for testing."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     velocity_net = SimpleVelocityNet()
-    model = FlowMatchingModel(velocity_net=velocity_net, scheduler="cond_ot")
+    model = FlowMatchingModel(velocity_net=velocity_net, scheduler=CondOTScheduler())
     model.to(device)
     return model
 

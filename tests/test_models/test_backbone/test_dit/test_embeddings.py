@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from physicsflow.models.backbone.dit.embeddings import (
+from physicsflow.models.dit.embeddings import (
     PatchEmbed3D,
     SpatioTemporalPosEmbed,
 )

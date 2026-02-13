@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from physicsflow.models.backbone.dit.blocks import (
+from physicsflow.models.dit.blocks import (
     Attention,
     DiTBlock,
     FactorizedAttention,

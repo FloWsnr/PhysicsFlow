@@ -2,11 +2,15 @@
 ########### Dataset parameters ############################
 ################################################################
 dataset:
-  name: my_dataset # name of the dataset (useful if you have multiple datasets)
-  input_dim: 128 # input dimension
-  target_dim: 128 # target dimension
-  train_split: 0.8 # train/val split
-  normalize: true # if true, normalize the data to zero mean and unit variance
+  name: my_dataset # name of the dataset (must match folder name under $DATA_DIR)
+  n_steps_input: 16 # number of input time steps
+  n_steps_output: 1 # number of output time steps
+  use_normalization: true # if true, normalize the data
+  normalization_type: zscore # zscore or rms
+  dt_stride: 1 # temporal stride (int or list of [min, max] for random stride)
+  full_trajectory_mode: false # if true, use full trajectories instead of windows
+  max_rollout_steps: 10000 # max steps for full trajectory mode
+  skip_steady_states: false # if true, skip steady-state regions
 
 ################################################################
 ########### Simulation parameters ############################
@@ -38,7 +42,29 @@ compile: true # if true, use torch.compile to compile the model (PyTorch 2.0+)
 ########### Model parameters ############################ ####
 ################################################################
 model:
-  dit_size: "DiT-S"
+  in_channels: null # number of input channels, computed from dataset
+  spatial_size: null # spatial size of the input (H, W), computed from dataset
+  temporal_size: null # temporal size of the input, computed from dataset
+
+  cond_dim: 128 # dimension of the conditioning vector
+
+  # DiT-S backbone parameters
+  hidden_dim: 384
+  depth: 12
+  num_heads: 6
+  mlp_ratio: 4.0
+  patch_size: [2, 2]
+  time_embed_dim: 256
+  conditioning_type: adaln
+  dropout: 0.0
+  attn_drop: 0.0
+  learnable_pos_embed: true
+  gradient_checkpointing: false
+
+  # Flow matching scheduler
+  scheduler:
+    type: cond_ot
+    params: {}
 
 
 ################################################################
@@ -56,7 +82,7 @@ optimizer:
   weight_decay: 0.01
   betas: [0.9, 0.999]
 
-max_grad_norm: null # null, or float for gradient clipping (stabilizes training)
+max_grad_norm: 5.0 # null, or float for gradient clipping (stabilizes training)
 
 ################################################################
 ########### LRScheduler parameters ############################

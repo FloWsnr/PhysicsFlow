@@ -32,6 +32,8 @@ from physicsflow.train.utils.logger import setup_logger
 def load_config(config_path: Path) -> dict:
     with open(config_path, "r") as f:
         config = yaml.load(f, Loader=CLoader)
+    # inject env vars from .env into config (e.g. for dataset paths, etc.)
+    config["dataset"]["data_dir"] = os.getenv("DATA_DIR")
     return config
 
 
@@ -144,6 +146,10 @@ def main(
         is_distributed=dist.is_initialized(),
         shuffle=False,
     )
+    # populate config with dataset-dependent values (e.g. input/output dims, etc.)
+    config["model"]["in_channels"] = dataset_train.input_dim
+    config["model"]["spatial_size"] = dataset_train.spatial_size
+    config["model"]["temporal_size"] = dataset_train.n_steps_input
 
     ############################################################
     ###### Load torch modules ##################################
@@ -163,8 +169,7 @@ def main(
     # these are used for evaluation during training (Wandb logging)
     # these are NOT the loss functions used for training (see criterion)
     eval_loss_fns = {
-        "MSE": torch.nn.MSELoss(),
-        "MAE": torch.nn.L1Loss(),
+        criterion.upper(): criterion_fn,
     }
 
     ############################################################
@@ -292,4 +297,5 @@ if __name__ == "__main__":
 
     config_path = Path(args.config_path)
 
+    load_dotenv()
     main(config_path)

@@ -10,9 +10,9 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from physicsflow.models.backbone.dit.blocks import DiTBlock, FinalLayer
-from physicsflow.models.backbone.dit.configs import DiTConfig, get_dit_config
-from physicsflow.models.backbone.dit.embeddings import PatchEmbed3D, SpatioTemporalPosEmbed
+from physicsflow.models.dit.blocks import DiTBlock, FinalLayer
+from physicsflow.models.dit.configs import DiTConfig, get_dit_config
+from physicsflow.models.dit.embeddings import PatchEmbed3D, SpatioTemporalPosEmbed
 from physicsflow.models.common import ConditioningProjection, TimeEmbedding
 
 

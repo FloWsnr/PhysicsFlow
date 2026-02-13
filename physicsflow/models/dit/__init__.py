@@ -4,25 +4,25 @@ This module provides a transformer-based backbone for velocity prediction
 in flow matching models, optimized for spatio-temporal physics data.
 """
 
-from physicsflow.models.backbone.dit.blocks import (
+from physicsflow.models.dit.blocks import (
     Attention,
     DiTBlock,
     FactorizedAttention,
     FinalLayer,
     Mlp,
 )
-from physicsflow.models.backbone.dit.configs import (
+from physicsflow.models.dit.configs import (
     DIT_CONFIGS,
     DiTConfig,
     get_dit_config,
     list_dit_configs,
 )
-from physicsflow.models.backbone.dit.dit_backbone import DiTBackbone
-from physicsflow.models.backbone.dit.embeddings import (
+from physicsflow.models.dit.dit_backbone import DiTBackbone
+from physicsflow.models.dit.embeddings import (
     PatchEmbed3D,
     SpatioTemporalPosEmbed,
 )
-from physicsflow.models.backbone.dit.modulation import (
+from physicsflow.models.dit.modulation import (
     AdaLNBlock,
     AdaLNModulation,
     CrossAttentionConditioning,

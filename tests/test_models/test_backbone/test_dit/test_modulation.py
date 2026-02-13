@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from physicsflow.models.backbone.dit.modulation import (
+from physicsflow.models.dit.modulation import (
     AdaLNModulation,
     AdaLNBlock,
     CrossAttentionConditioning,

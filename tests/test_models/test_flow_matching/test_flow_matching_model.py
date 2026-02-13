@@ -3,38 +3,64 @@
 import pytest
 import torch
 
-from physicsflow.models.backbone import MLPBackbone
+from physicsflow.models.dit import DiTBackbone
 from physicsflow.models.flow_matching import (
     FlowMatchingModel,
     FlowMatchingOutput,
+)
+from physicsflow.models.flow_matching.schedulers import (
+    CondOTScheduler,
+    CosineScheduler,
+    LinearVPScheduler,
+    PolynomialScheduler,
 )
 
 
 @pytest.fixture
 def velocity_net():
-    return MLPBackbone(
+    return DiTBackbone(
         in_channels=3,
         spatial_size=(8, 8),
         temporal_size=4,
         cond_dim=2,
         hidden_dim=64,
+        depth=2,
+        num_heads=4,
+        mlp_ratio=4.0,
+        patch_size=(2, 2),
+        time_embed_dim=64,
+        conditioning_type="adaln",
+        dropout=0.0,
+        attn_drop=0.0,
+        learnable_pos_embed=True,
+        use_gradient_checkpointing=False,
     )
 
 
 @pytest.fixture
 def velocity_net_no_cond():
-    return MLPBackbone(
+    return DiTBackbone(
         in_channels=3,
         spatial_size=(8, 8),
         temporal_size=4,
         cond_dim=0,
         hidden_dim=64,
+        depth=2,
+        num_heads=4,
+        mlp_ratio=4.0,
+        patch_size=(2, 2),
+        time_embed_dim=64,
+        conditioning_type="adaln",
+        dropout=0.0,
+        attn_drop=0.0,
+        learnable_pos_embed=True,
+        use_gradient_checkpointing=False,
     )
 
 
 @pytest.fixture
 def flow_model(velocity_net):
-    return FlowMatchingModel(velocity_net, scheduler="cond_ot")
+    return FlowMatchingModel(velocity_net, scheduler=CondOTScheduler())
 
 
 @pytest.fixture
@@ -45,7 +71,7 @@ def sample_data():
     }
 
 
-class TestMLPBackbone:
+class TestDiTBackbone:
     def test_output_shape(self, velocity_net):
         x_t = torch.randn(2, 3, 4, 8, 8)
         t = torch.tensor([0.5, 0.5])
@@ -156,8 +182,13 @@ class TestFlowMatchingModel:
         """Test that all schedulers work."""
         x_1 = sample_data["input_fields"]
         cond = sample_data["constant_scalars"]
-        for scheduler_name in ["cond_ot", "cosine", "linear_vp", "polynomial"]:
-            model = FlowMatchingModel(velocity_net, scheduler=scheduler_name)
+        for scheduler in [
+            CondOTScheduler(),
+            CosineScheduler(),
+            LinearVPScheduler(),
+            PolynomialScheduler(),
+        ]:
+            model = FlowMatchingModel(velocity_net, scheduler=scheduler)
             output = model(x_1, cond)
             loss = torch.nn.functional.mse_loss(
                 output.predicted_velocity, output.target_velocity
@@ -167,7 +198,7 @@ class TestFlowMatchingModel:
 
     def test_without_conditioning(self, velocity_net_no_cond):
         """Test model works without conditioning."""
-        model = FlowMatchingModel(velocity_net_no_cond, scheduler="cond_ot")
+        model = FlowMatchingModel(velocity_net_no_cond, scheduler=CondOTScheduler())
         x_1 = torch.randn(2, 3, 4, 8, 8)
         output = model(x_1, cond=None)
         loss = torch.nn.functional.mse_loss(
@@ -199,7 +230,7 @@ class TestFlowMatchingModelIntegration:
 
     def test_loss_decreases_on_overfit(self, velocity_net):
         """Test that loss can decrease when overfitting to a single batch."""
-        model = FlowMatchingModel(velocity_net, scheduler="cond_ot")
+        model = FlowMatchingModel(velocity_net, scheduler=CondOTScheduler())
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
 
         # Fixed data to overfit
