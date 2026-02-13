@@ -114,7 +114,7 @@ class Evaluator:
                 k: v.to(self.device) if isinstance(v, torch.Tensor) else v
                 for k, v in data.items()
             }
-            t1 = data["input_fields"]
+            t1 = data["output_fields"]
             cond = data["constant_scalars"]
 
             with torch.autocast(
