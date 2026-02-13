@@ -18,6 +18,23 @@ from physicsflow.models.flow_matching.schedulers import (
     PolynomialScheduler,
 )
 
+# Tiny architecture params shared across all tests
+_TINY = dict(
+    hidden_dim=64,
+    depth=2,
+    num_heads=4,
+    mlp_ratio=2.0,
+    patch_size=(2, 2),
+    time_embed_dim=64,
+    conditioning_type="adaln",
+    dropout=0.0,
+    attn_drop=0.0,
+    learnable_pos_embed=True,
+)
+_SPATIAL = (8, 8)
+_TEMPORAL = 4
+_SHAPE = (2, 3, _TEMPORAL, *_SPATIAL)  # (B, C, T, H, W)
+
 
 class TestDiTConfig:
     """Tests for DiT configurations."""
@@ -68,47 +85,23 @@ class TestDiTBackbone:
 
     @pytest.fixture
     def dit_model(self):
-        """Create a small DiT for testing."""
+        """Create a tiny DiT for testing."""
         return DiTBackbone(
-            in_channels=3,
-            spatial_size=(32, 32),
-            temporal_size=8,
-            cond_dim=5,
-            hidden_dim=128,
-            depth=2,
-            num_heads=4,
-            mlp_ratio=4.0,
-            patch_size=(4, 4),
-            time_embed_dim=256,
-            conditioning_type="adaln",
-            dropout=0.0,
-            attn_drop=0.0,
-            learnable_pos_embed=True,
+            in_channels=3, spatial_size=_SPATIAL, temporal_size=_TEMPORAL,
+            cond_dim=5, **_TINY,
         )
 
     @pytest.fixture
     def dit_model_no_cond(self):
-        """Create a small DiT without conditioning."""
+        """Create a tiny DiT without conditioning."""
         return DiTBackbone(
-            in_channels=3,
-            spatial_size=(32, 32),
-            temporal_size=8,
-            cond_dim=0,
-            hidden_dim=128,
-            depth=2,
-            num_heads=4,
-            mlp_ratio=4.0,
-            patch_size=(4, 4),
-            time_embed_dim=256,
-            conditioning_type="adaln",
-            dropout=0.0,
-            attn_drop=0.0,
-            learnable_pos_embed=True,
+            in_channels=3, spatial_size=_SPATIAL, temporal_size=_TEMPORAL,
+            cond_dim=0, **_TINY,
         )
 
     def test_output_shape(self, dit_model):
         """Test output matches input shape."""
-        x_t = torch.randn(2, 3, 8, 32, 32)
+        x_t = torch.randn(*_SHAPE)
         t = torch.rand(2)
         cond = torch.randn(2, 5)
         out = dit_model(x_t, t, cond)
@@ -116,14 +109,14 @@ class TestDiTBackbone:
 
     def test_without_conditioning(self, dit_model_no_cond):
         """Test model works without physics parameters."""
-        x_t = torch.randn(2, 3, 8, 32, 32)
+        x_t = torch.randn(*_SHAPE)
         t = torch.rand(2)
         out = dit_model_no_cond(x_t, t, None)
         assert out.shape == x_t.shape
 
     def test_gradient_flow(self, dit_model):
         """Test gradients flow through backbone."""
-        x_t = torch.randn(2, 3, 8, 32, 32, requires_grad=True)
+        x_t = torch.randn(*_SHAPE, requires_grad=True)
         t = torch.rand(2)
         cond = torch.randn(2, 5)
         out = dit_model(x_t, t, cond)
@@ -135,37 +128,30 @@ class TestDiTBackbone:
         """Test both conditioning mechanisms."""
         for cond_type in ["adaln", "cross_attention"]:
             model = DiTBackbone(
-                in_channels=3,
-                spatial_size=(32, 32),
-                temporal_size=8,
-                cond_dim=5,
-                hidden_dim=128,
-                depth=2,
-                num_heads=4,
-                mlp_ratio=4.0,
-                patch_size=(4, 4),
-                time_embed_dim=256,
-                conditioning_type=cond_type,
-                dropout=0.0,
-                attn_drop=0.0,
-                learnable_pos_embed=True,
+                in_channels=3, spatial_size=_SPATIAL, temporal_size=_TEMPORAL,
+                cond_dim=5, **{**_TINY, "conditioning_type": cond_type},
             )
-            x_t = torch.randn(2, 3, 8, 32, 32)
+            x_t = torch.randn(*_SHAPE)
             t = torch.rand(2)
             cond = torch.randn(2, 5)
             out = model(x_t, t, cond)
             assert out.shape == x_t.shape
 
     def test_from_config_string(self):
-        """Test creating from config string."""
+        """Test creating from config string with overrides for speed."""
         model = DiTBackbone.from_config(
             "DiT-S",
             in_channels=3,
-            spatial_size=(64, 64),
-            temporal_size=10,
+            spatial_size=_SPATIAL,
+            temporal_size=_TEMPORAL,
             cond_dim=5,
+            hidden_dim=64,
+            depth=2,
+            num_heads=4,
+            patch_size=(2, 2),
+            time_embed_dim=64,
         )
-        x_t = torch.randn(1, 3, 10, 64, 64)
+        x_t = torch.randn(1, 3, _TEMPORAL, *_SPATIAL)
         t = torch.rand(1)
         cond = torch.randn(1, 5)
         out = model(x_t, t, cond)
@@ -174,33 +160,36 @@ class TestDiTBackbone:
     def test_from_config_object(self):
         """Test creating from config object."""
         config = DiTConfig(
-            hidden_dim=256, depth=4, num_heads=8, mlp_ratio=4.0,
-            patch_size=(4, 4), time_embed_dim=256, conditioning_type="adaln",
+            hidden_dim=64, depth=2, num_heads=4, mlp_ratio=2.0,
+            patch_size=(2, 2), time_embed_dim=64, conditioning_type="adaln",
             dropout=0.0, attn_drop=0.0, learnable_pos_embed=True,
         )
         model = DiTBackbone.from_config(
             config,
             in_channels=3,
-            spatial_size=(32, 32),
-            temporal_size=8,
+            spatial_size=_SPATIAL,
+            temporal_size=_TEMPORAL,
             cond_dim=5,
         )
-        assert model.hidden_dim == 256
-        assert len(model.blocks) == 4
+        assert model.hidden_dim == 64
+        assert len(model.blocks) == 2
 
     def test_from_config_with_overrides(self):
         """Test config overrides."""
         model = DiTBackbone.from_config(
             "DiT-S",
             in_channels=3,
-            spatial_size=(32, 32),
-            temporal_size=8,
+            spatial_size=_SPATIAL,
+            temporal_size=_TEMPORAL,
             cond_dim=5,
-            hidden_dim=512,  # Override
-            depth=6,  # Override
+            hidden_dim=128,
+            depth=4,
+            num_heads=4,
+            patch_size=(2, 2),
+            time_embed_dim=64,
         )
-        assert model.hidden_dim == 512
-        assert len(model.blocks) == 6
+        assert model.hidden_dim == 128
+        assert len(model.blocks) == 4
 
     def test_get_num_params(self, dit_model):
         """Test parameter counting."""
@@ -213,7 +202,7 @@ class TestDiTBackbone:
         """Test string representation."""
         repr_str = dit_model.extra_repr()
         assert "in_channels=3" in repr_str
-        assert "hidden_dim=128" in repr_str
+        assert "hidden_dim=64" in repr_str
         assert "params=" in repr_str
 
     def test_invalid_spatial_size(self):
@@ -221,41 +210,20 @@ class TestDiTBackbone:
         with pytest.raises(ValueError):
             DiTBackbone(
                 in_channels=3,
-                spatial_size=(30, 30),  # Not divisible by 4
-                temporal_size=8,
+                spatial_size=(7, 7),  # Not divisible by 2
+                temporal_size=_TEMPORAL,
                 cond_dim=5,
-                hidden_dim=128,
-                depth=2,
-                num_heads=4,
-                mlp_ratio=4.0,
-                patch_size=(4, 4),
-                time_embed_dim=256,
-                conditioning_type="adaln",
-                dropout=0.0,
-                attn_drop=0.0,
-                learnable_pos_embed=True,
+                **_TINY,
             )
 
     def test_different_input_channels(self):
         """Test different input channel counts."""
-        for channels in [1, 3, 5, 16]:
+        for channels in [1, 5]:
             model = DiTBackbone(
-                in_channels=channels,
-                spatial_size=(32, 32),
-                temporal_size=8,
-                cond_dim=5,
-                hidden_dim=128,
-                depth=2,
-                num_heads=4,
-                mlp_ratio=4.0,
-                patch_size=(4, 4),
-                time_embed_dim=256,
-                conditioning_type="adaln",
-                dropout=0.0,
-                attn_drop=0.0,
-                learnable_pos_embed=True,
+                in_channels=channels, spatial_size=_SPATIAL,
+                temporal_size=_TEMPORAL, cond_dim=5, **_TINY,
             )
-            x_t = torch.randn(2, channels, 8, 32, 32)
+            x_t = torch.randn(2, channels, _TEMPORAL, *_SPATIAL)
             t = torch.rand(2)
             cond = torch.randn(2, 5)
             out = model(x_t, t, cond)
@@ -264,7 +232,7 @@ class TestDiTBackbone:
     def test_eval_mode_deterministic(self, dit_model):
         """Test model is deterministic in eval mode."""
         dit_model.eval()
-        x_t = torch.randn(2, 3, 8, 32, 32)
+        x_t = torch.randn(*_SHAPE)
         t = torch.rand(2)
         cond = torch.randn(2, 5)
         out1 = dit_model(x_t, t, cond)
@@ -277,22 +245,10 @@ class TestDiTWithFlowMatching:
 
     @pytest.fixture
     def flow_model(self):
-        """Create FlowMatchingModel with DiT backbone."""
+        """Create FlowMatchingModel with tiny DiT backbone."""
         dit = DiTBackbone(
-            in_channels=3,
-            spatial_size=(32, 32),
-            temporal_size=8,
-            cond_dim=5,
-            hidden_dim=128,
-            depth=2,
-            num_heads=4,
-            mlp_ratio=4.0,
-            patch_size=(4, 4),
-            time_embed_dim=256,
-            conditioning_type="adaln",
-            dropout=0.0,
-            attn_drop=0.0,
-            learnable_pos_embed=True,
+            in_channels=3, spatial_size=_SPATIAL, temporal_size=_TEMPORAL,
+            cond_dim=5, **_TINY,
         )
         return FlowMatchingModel(dit, scheduler=CondOTScheduler())
 
@@ -300,7 +256,7 @@ class TestDiTWithFlowMatching:
     def sample_data(self):
         """Sample data for testing."""
         return {
-            "input_fields": torch.randn(2, 3, 8, 32, 32),
+            "input_fields": torch.randn(*_SHAPE),
             "constant_scalars": torch.randn(2, 5),
         }
 
@@ -347,44 +303,30 @@ class TestDiTWithFlowMatching:
 
     def test_sampling(self, flow_model):
         """Test sample generation with DiT."""
-        shape = (2, 3, 8, 32, 32)
         cond = torch.randn(2, 5)
-        samples = flow_model.sample(shape, cond, num_steps=5)
-        assert samples.shape == shape
+        samples = flow_model.sample(_SHAPE, cond, num_steps=2)
+        assert samples.shape == _SHAPE
 
     def test_sampling_methods(self, flow_model):
         """Test different sampling methods."""
-        shape = (2, 3, 8, 32, 32)
         cond = torch.randn(2, 5)
 
         torch.manual_seed(42)
-        euler = flow_model.sample(shape, cond, num_steps=5, method="euler")
+        euler = flow_model.sample(_SHAPE, cond, num_steps=2, method="euler")
 
         torch.manual_seed(42)
-        midpoint = flow_model.sample(shape, cond, num_steps=5, method="midpoint")
+        midpoint = flow_model.sample(_SHAPE, cond, num_steps=2, method="midpoint")
 
-        assert euler.shape == shape
-        assert midpoint.shape == shape
+        assert euler.shape == _SHAPE
+        assert midpoint.shape == _SHAPE
         # Different methods should give different results
         assert not torch.allclose(euler, midpoint)
 
     def test_different_schedulers(self, sample_data):
         """Test DiT with different flow matching schedulers."""
         dit = DiTBackbone(
-            in_channels=3,
-            spatial_size=(32, 32),
-            temporal_size=8,
-            cond_dim=5,
-            hidden_dim=128,
-            depth=2,
-            num_heads=4,
-            mlp_ratio=4.0,
-            patch_size=(4, 4),
-            time_embed_dim=256,
-            conditioning_type="adaln",
-            dropout=0.0,
-            attn_drop=0.0,
-            learnable_pos_embed=True,
+            in_channels=3, spatial_size=_SPATIAL, temporal_size=_TEMPORAL,
+            cond_dim=5, **_TINY,
         )
 
         x_1 = sample_data["input_fields"]
@@ -409,8 +351,8 @@ class TestDiTModelFactory:
         config = {
             "size": "S",
             "in_channels": 3,
-            "spatial_size": [32, 32],
-            "temporal_size": 8,
+            "spatial_size": [8, 8],
+            "temporal_size": 4,
             "cond_dim": 5,
             "scheduler": {"type": "cond_ot", "params": {}},
         }

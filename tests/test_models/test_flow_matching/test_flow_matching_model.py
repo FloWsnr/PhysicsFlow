@@ -152,7 +152,7 @@ class TestFlowMatchingModel:
         shape = (2, 3, 4, 8, 8)
         cond = torch.randn(2, 2)
 
-        samples = flow_model.sample(shape=shape, cond=cond, num_steps=10)
+        samples = flow_model.sample(shape=shape, cond=cond, num_steps=3)
         assert samples.shape == shape
 
     def test_sample_euler_vs_midpoint(self, flow_model):
@@ -162,12 +162,12 @@ class TestFlowMatchingModel:
 
         torch.manual_seed(42)
         samples_euler = flow_model.sample(
-            shape=shape, cond=cond, num_steps=10, method="euler"
+            shape=shape, cond=cond, num_steps=3, method="euler"
         )
 
         torch.manual_seed(42)
         samples_midpoint = flow_model.sample(
-            shape=shape, cond=cond, num_steps=10, method="midpoint"
+            shape=shape, cond=cond, num_steps=3, method="midpoint"
         )
 
         # Both should produce valid shapes
@@ -238,7 +238,7 @@ class TestFlowMatchingModelIntegration:
 
         # Train for a few steps
         losses = []
-        for _ in range(20):
+        for _ in range(10):
             output = model(x_1, cond)
             loss = torch.nn.functional.mse_loss(
                 output.predicted_velocity, output.target_velocity

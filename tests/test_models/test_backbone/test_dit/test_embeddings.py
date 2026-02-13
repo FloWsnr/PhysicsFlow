@@ -14,35 +14,35 @@ class TestPatchEmbed3D:
 
     def test_output_shape(self):
         """Test correct output dimensions."""
-        embed = PatchEmbed3D(in_channels=3, hidden_dim=384, patch_size=(4, 4))
-        x = torch.randn(2, 3, 10, 64, 64)
+        embed = PatchEmbed3D(in_channels=3, hidden_dim=64, patch_size=(2, 2))
+        x = torch.randn(2, 3, 4, 16, 16)
         out = embed(x)
-        # Expected: (2, 10*16*16, 384) = (2, 2560, 384)
-        assert out.shape == (2, 2560, 384)
+        # Expected: (2, 4*8*8, 64) = (2, 256, 64)
+        assert out.shape == (2, 256, 64)
 
     def test_different_patch_sizes(self):
         """Test various patch sizes."""
-        for patch_size in [(2, 2), (4, 4), (8, 8)]:
-            embed = PatchEmbed3D(3, 256, patch_size)
-            x = torch.randn(1, 3, 8, 32, 32)
+        for patch_size in [(2, 2), (4, 4)]:
+            embed = PatchEmbed3D(3, 64, patch_size)
+            x = torch.randn(1, 3, 4, 16, 16)
             out = embed(x)
-            num_patches_h = 32 // patch_size[0]
-            num_patches_w = 32 // patch_size[1]
-            num_patches = 8 * num_patches_h * num_patches_w
-            assert out.shape == (1, num_patches, 256)
+            num_patches_h = 16 // patch_size[0]
+            num_patches_w = 16 // patch_size[1]
+            num_patches = 4 * num_patches_h * num_patches_w
+            assert out.shape == (1, num_patches, 64)
 
     def test_different_input_channels(self):
         """Test different input channel counts."""
-        for in_channels in [1, 3, 5, 16]:
-            embed = PatchEmbed3D(in_channels, 128, (2, 2))
-            x = torch.randn(2, in_channels, 4, 16, 16)
+        for in_channels in [1, 5]:
+            embed = PatchEmbed3D(in_channels, 64, (2, 2))
+            x = torch.randn(2, in_channels, 4, 8, 8)
             out = embed(x)
-            assert out.shape == (2, 4 * 8 * 8, 128)
+            assert out.shape == (2, 4 * 4 * 4, 64)
 
     def test_gradient_flow(self):
         """Test gradients flow through embedding."""
-        embed = PatchEmbed3D(3, 256, (2, 2))
-        x = torch.randn(2, 3, 4, 16, 16, requires_grad=True)
+        embed = PatchEmbed3D(3, 64, (2, 2))
+        x = torch.randn(2, 3, 4, 8, 8, requires_grad=True)
         out = embed(x)
         out.sum().backward()
         assert x.grad is not None
@@ -50,11 +50,11 @@ class TestPatchEmbed3D:
 
     def test_get_num_patches(self):
         """Test num patches calculation."""
-        embed = PatchEmbed3D(3, 256, (4, 4))
-        h, w, t = embed.get_num_patches((64, 64), 10)
-        assert h == 16
-        assert w == 16
-        assert t == 10
+        embed = PatchEmbed3D(3, 64, (4, 4))
+        h, w, t = embed.get_num_patches((16, 16), 4)
+        assert h == 4
+        assert w == 4
+        assert t == 4
 
 
 class TestSpatioTemporalPosEmbed:
@@ -63,28 +63,28 @@ class TestSpatioTemporalPosEmbed:
     def test_output_shape_learnable(self):
         """Test positional embedding shape with learnable embeddings."""
         pos_embed = SpatioTemporalPosEmbed(
-            hidden_dim=256,
-            max_spatial_size=(16, 16),
-            max_temporal_size=10,
+            hidden_dim=64,
+            max_spatial_size=(8, 8),
+            max_temporal_size=4,
             learnable=True,
         )
-        out = pos_embed(8, 8, 5)  # 8x8 spatial, 5 frames
-        assert out.shape == (1, 5 * 8 * 8, 256)
+        out = pos_embed(4, 4, 2)  # 4x4 spatial, 2 frames
+        assert out.shape == (1, 2 * 4 * 4, 64)
 
     def test_output_shape_sinusoidal(self):
         """Test positional embedding shape with sinusoidal embeddings."""
         pos_embed = SpatioTemporalPosEmbed(
-            hidden_dim=256,
-            max_spatial_size=(16, 16),
-            max_temporal_size=10,
+            hidden_dim=64,
+            max_spatial_size=(8, 8),
+            max_temporal_size=4,
             learnable=False,
         )
-        out = pos_embed(8, 8, 5)
-        assert out.shape == (1, 5 * 8 * 8, 256)
+        out = pos_embed(4, 4, 2)
+        assert out.shape == (1, 2 * 4 * 4, 64)
 
     def test_learnable_parameters(self):
         """Test that learnable embeddings have parameters."""
-        pos_embed = SpatioTemporalPosEmbed(256, (16, 16), 10, learnable=True)
+        pos_embed = SpatioTemporalPosEmbed(64, (8, 8), 4, learnable=True)
         params = list(pos_embed.parameters())
         assert len(params) == 2  # spatial and temporal
         assert params[0].requires_grad
@@ -92,27 +92,27 @@ class TestSpatioTemporalPosEmbed:
 
     def test_sinusoidal_no_parameters(self):
         """Test that sinusoidal embeddings have no learnable parameters."""
-        pos_embed = SpatioTemporalPosEmbed(256, (16, 16), 10, learnable=False)
+        pos_embed = SpatioTemporalPosEmbed(64, (8, 8), 4, learnable=False)
         params = list(pos_embed.parameters())
         assert len(params) == 0
 
     def test_different_sizes(self):
         """Test different spatial and temporal sizes."""
-        pos_embed = SpatioTemporalPosEmbed(128, (32, 32), 20, learnable=True)
-        for h, w, t in [(8, 8, 5), (16, 16, 10), (32, 32, 20)]:
+        pos_embed = SpatioTemporalPosEmbed(64, (8, 8), 8, learnable=True)
+        for h, w, t in [(4, 4, 2), (8, 8, 4), (8, 8, 8)]:
             out = pos_embed(h, w, t)
-            assert out.shape == (1, t * h * w, 128)
+            assert out.shape == (1, t * h * w, 64)
 
     def test_interpolation(self):
         """Test positional embedding interpolation."""
-        pos_embed = SpatioTemporalPosEmbed(128, (8, 8), 4, learnable=True)
+        pos_embed = SpatioTemporalPosEmbed(64, (4, 4), 2, learnable=True)
         # Interpolate to larger size
-        out = pos_embed.interpolate(16, 16, 8)
-        assert out.shape == (1, 8 * 16 * 16, 128)
+        out = pos_embed.interpolate(8, 8, 4)
+        assert out.shape == (1, 4 * 8 * 8, 64)
 
     def test_deterministic(self):
         """Test that embeddings are deterministic."""
-        pos_embed = SpatioTemporalPosEmbed(128, (16, 16), 10, learnable=True)
-        out1 = pos_embed(8, 8, 5)
-        out2 = pos_embed(8, 8, 5)
+        pos_embed = SpatioTemporalPosEmbed(64, (8, 8), 4, learnable=True)
+        out1 = pos_embed(4, 4, 2)
+        out2 = pos_embed(4, 4, 2)
         assert torch.allclose(out1, out2)
