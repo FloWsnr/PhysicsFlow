@@ -331,7 +331,7 @@ class Trainer:
                 k: v.to(self.device) if isinstance(v, torch.Tensor) else v
                 for k, v in data.items()
             }
-            x1 = data["input_fields"]
+            x_1 = data["output_fields"]
             cond = data["constant_scalars"]
 
             self.optimizer.zero_grad()
@@ -340,7 +340,7 @@ class Trainer:
                 dtype=self.amp_precision,
                 enabled=self.use_amp,
             ):
-                output: FlowMatchingOutput = self.model(x1, cond)
+                output: FlowMatchingOutput = self.model(x_1, cond)
                 raw_loss = self.criterion(
                     output.predicted_velocity, output.target_velocity
                 )

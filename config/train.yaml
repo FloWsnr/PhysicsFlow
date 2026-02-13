@@ -3,8 +3,8 @@
 ################################################################
 dataset:
   name: my_dataset # name of the dataset (must match folder name under $DATA_DIR)
-  n_steps_input: 16 # number of input time steps
-  n_steps_output: 1 # number of output time steps
+  n_steps_input: 1 # number of input time steps
+  n_steps_output: 16 # number of output time steps
   use_normalization: true # if true, normalize the data
   normalization_type: zscore # zscore or rms
   dt_stride: 1 # temporal stride (int or list of [min, max] for random stride)
