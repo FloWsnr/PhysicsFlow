@@ -6,8 +6,8 @@
 ### Job name
 #SBATCH --job-name=name_of_your_job
 
-### Output file
-#SBATCH --output=results/00_slrm_logs/name_of_your_job_%j.out
+### Output file (captures output before exec redirect takes over)
+#SBATCH --output=results/00_slrm_logs/%x_%j.out
 
 ### Number of nodes
 #SBATCH --nodes=1
@@ -16,7 +16,7 @@
 #SBATCH --ntasks-per-node=70
 
 ### How much memory in total (MB)
-#SBATCH --mem=600G
+#SBATCH --mem=200G
 
 ### Mail notification configuration
 #SBATCH --mail-type=ALL
@@ -40,21 +40,21 @@
 #####################################################################################
 ############################# Setup #################################################
 #####################################################################################
-# Set the time limit for the job, allows for graceful shutdown
-# Should be lower than the time limit of the partition
-# Format: HH:MM:SS
-time_limit="24:00:00"
+# Create SBATCH output directory if it doesn't exist
+mkdir -p results/00_slrm_logs
+module load cuda/13.0.2
 
-# Load environment variables from .env file
-# Script is located at physicsflow/train/scripts/train_riv.sh, .env is at repo root
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/../../../.env"
+
+ENV_FILE="........./.env"
 if [ -f "$ENV_FILE" ]; then
-    export $(grep -v '^#' "$ENV_FILE" | xargs)
+    set -a
+    source "$ENV_FILE"
+    set +a
+else
+    echo "Error: .env file not found at $ENV_FILE"
+    echo "Please create a .env file with RESULTS_DIR and BASE_DIR defined."
+    exit 1
 fi
-
-# activate uv virtual environment
-source "${BASE_DIR}/.venv/bin/activate"
 
 ######################################################################################
 ############################# Set paths ##############################################
@@ -62,11 +62,19 @@ source "${BASE_DIR}/.venv/bin/activate"
 
 sim_name="train" # name of the folder where you placed the yaml config
 
+# Create log directory if it doesn't exist
+log_dir="${RESULTS_DIR}/${sim_name}"
+mkdir -p "$log_dir"
+
+# Redirect all output to the run directory
+log_file="${log_dir}/${sim_name}_${SLURM_JOB_ID}.out"
+exec > "$log_file" 2>&1
+
 python_exec="${BASE_DIR}/physicsflow/train/run_training.py"
 config_file="${RESULTS_DIR}/${sim_name}/train.yaml"
 
 nnodes=1
-ngpus_per_node=4
+ngpus_per_node=2
 export OMP_NUM_THREADS=1
 
 
@@ -82,4 +90,4 @@ exec_args="--config_path $config_file"
 
 # Capture Python output and errors in a variable and run the script
 
-torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
+uv run torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
