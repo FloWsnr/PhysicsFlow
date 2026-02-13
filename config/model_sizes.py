@@ -28,8 +28,13 @@ class DiTConfig:
     hidden_dim: int
     depth: int
     num_heads: int
-    mlp_ratio: float = 4.0
-    patch_size: tuple[int, int] = (2, 2)
+    mlp_ratio: float
+    patch_size: tuple[int, int]
+    time_embed_dim: int
+    conditioning_type: str
+    dropout: float
+    attn_drop: float
+    learnable_pos_embed: bool
 
     @property
     def head_dim(self) -> int:
@@ -55,6 +60,11 @@ DIT_CONFIGS: dict[str, DiTConfig] = {
         num_heads=6,
         mlp_ratio=4.0,
         patch_size=(2, 2),
+        time_embed_dim=256,
+        conditioning_type="adaln",
+        dropout=0.0,
+        attn_drop=0.0,
+        learnable_pos_embed=True,
     ),
     # DiT-B: ~130M parameters
     "DiT-B": DiTConfig(
@@ -63,6 +73,11 @@ DIT_CONFIGS: dict[str, DiTConfig] = {
         num_heads=12,
         mlp_ratio=4.0,
         patch_size=(2, 2),
+        time_embed_dim=256,
+        conditioning_type="adaln",
+        dropout=0.0,
+        attn_drop=0.0,
+        learnable_pos_embed=True,
     ),
     # DiT-L: ~458M parameters
     "DiT-L": DiTConfig(
@@ -71,6 +86,11 @@ DIT_CONFIGS: dict[str, DiTConfig] = {
         num_heads=16,
         mlp_ratio=4.0,
         patch_size=(2, 2),
+        time_embed_dim=256,
+        conditioning_type="adaln",
+        dropout=0.0,
+        attn_drop=0.0,
+        learnable_pos_embed=True,
     ),
     # DiT-XL: ~675M parameters
     "DiT-XL": DiTConfig(
@@ -79,6 +99,11 @@ DIT_CONFIGS: dict[str, DiTConfig] = {
         num_heads=16,
         mlp_ratio=4.0,
         patch_size=(2, 2),
+        time_embed_dim=256,
+        conditioning_type="adaln",
+        dropout=0.0,
+        attn_drop=0.0,
+        learnable_pos_embed=True,
     ),
 }
 

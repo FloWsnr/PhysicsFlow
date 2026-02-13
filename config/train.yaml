@@ -29,7 +29,7 @@ checkpoint:
 ################################################################
 ########### General parameters ############################
 ################################################################
-mem_budget: 1 # memory budget in percent of total memory. # if below 1, use gradient checkpointing
+mem_budget: 1 # memory budget as fraction of total memory for torch.compile activation checkpointing
 seed: 42
 batch_size: 64 # batch size per GPU!!!!
 total_updates: 600e3 # number of batches to use for training
@@ -46,23 +46,12 @@ compile_fullgraph: true # if true, compile the full graph (may break with dynami
 ########### Model parameters ############################ ####
 ################################################################
 model:
+  size: S # DiT size preset: S (~33M), B (~130M), L (~458M), XL (~675M)
+
   in_channels: null # number of input channels, computed from dataset
   spatial_size: null # spatial size of the input (H, W), computed from dataset
   temporal_size: null # temporal size of the input, computed from dataset
-
-  cond_dim: 128 # dimension of the conditioning vector
-
-  hidden_dim: 384
-  depth: 12
-  num_heads: 6
-  mlp_ratio: 4.0
-  patch_size: [2, 2]
-  time_embed_dim: 256
-  conditioning_type: adaln
-  dropout: 0.0
-  attn_drop: 0.0
-  learnable_pos_embed: true
-  gradient_checkpointing: false
+  cond_dim: null # dimension of the conditioning vector
 
   # Flow matching scheduler
   scheduler:

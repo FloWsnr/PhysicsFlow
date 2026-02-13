@@ -11,7 +11,7 @@ from physicsflow.models.dit.blocks import (
     FinalLayer,
     Mlp,
 )
-from physicsflow.models.dit.configs import (
+from config.model_sizes import (
     DIT_CONFIGS,
     DiTConfig,
     get_dit_config,

@@ -10,6 +10,7 @@ from physicsflow.models.dit import (
     list_dit_configs,
 )
 from physicsflow.models.flow_matching import FlowMatchingModel
+from physicsflow.models.model_utils import get_model
 from physicsflow.models.flow_matching.schedulers import (
     CondOTScheduler,
     CosineScheduler,
@@ -45,13 +46,22 @@ class TestDiTConfig:
 
     def test_config_head_dim(self):
         """Test head dimension property."""
-        config = DiTConfig(hidden_dim=256, depth=6, num_heads=8)
+        config = DiTConfig(
+            hidden_dim=256, depth=6, num_heads=8, mlp_ratio=4.0,
+            patch_size=(2, 2), time_embed_dim=256, conditioning_type="adaln",
+            dropout=0.0, attn_drop=0.0, learnable_pos_embed=True,
+        )
         assert config.head_dim == 32
 
     def test_config_validation(self):
         """Test config validation for invalid hidden_dim/num_heads."""
         with pytest.raises(ValueError):
-            DiTConfig(hidden_dim=256, depth=6, num_heads=7)  # Not divisible
+            DiTConfig(
+                hidden_dim=256, depth=6, num_heads=7, mlp_ratio=4.0,
+                patch_size=(2, 2), time_embed_dim=256, conditioning_type="adaln",
+                dropout=0.0, attn_drop=0.0, learnable_pos_embed=True,
+                gradient_checkpointing=False,
+            )  # Not divisible
 
 
 class TestDiTBackbone:
@@ -68,7 +78,13 @@ class TestDiTBackbone:
             hidden_dim=128,
             depth=2,
             num_heads=4,
+            mlp_ratio=4.0,
             patch_size=(4, 4),
+            time_embed_dim=256,
+            conditioning_type="adaln",
+            dropout=0.0,
+            attn_drop=0.0,
+            learnable_pos_embed=True,
         )
 
     @pytest.fixture
@@ -82,7 +98,13 @@ class TestDiTBackbone:
             hidden_dim=128,
             depth=2,
             num_heads=4,
+            mlp_ratio=4.0,
             patch_size=(4, 4),
+            time_embed_dim=256,
+            conditioning_type="adaln",
+            dropout=0.0,
+            attn_drop=0.0,
+            learnable_pos_embed=True,
         )
 
     def test_output_shape(self, dit_model):
@@ -110,27 +132,6 @@ class TestDiTBackbone:
         assert x_t.grad is not None
         assert x_t.grad.abs().sum() > 0
 
-    def test_gradient_checkpointing(self):
-        """Test gradient checkpointing works."""
-        model = DiTBackbone(
-            in_channels=3,
-            spatial_size=(32, 32),
-            temporal_size=8,
-            cond_dim=5,
-            hidden_dim=128,
-            depth=2,
-            num_heads=4,
-            patch_size=(4, 4),
-            use_gradient_checkpointing=True,
-        )
-        model.train()
-        x_t = torch.randn(2, 3, 8, 32, 32, requires_grad=True)
-        t = torch.rand(2)
-        cond = torch.randn(2, 5)
-        out = model(x_t, t, cond)
-        out.sum().backward()
-        assert x_t.grad is not None
-
     def test_conditioning_types(self):
         """Test both conditioning mechanisms."""
         for cond_type in ["adaln", "cross_attention"]:
@@ -142,8 +143,14 @@ class TestDiTBackbone:
                 hidden_dim=128,
                 depth=2,
                 num_heads=4,
+                mlp_ratio=4.0,
                 patch_size=(4, 4),
+                time_embed_dim=256,
                 conditioning_type=cond_type,
+                dropout=0.0,
+                attn_drop=0.0,
+                learnable_pos_embed=True,
+                use_gradient_checkpointing=False,
             )
             x_t = torch.randn(2, 3, 8, 32, 32)
             t = torch.rand(2)
@@ -168,7 +175,11 @@ class TestDiTBackbone:
 
     def test_from_config_object(self):
         """Test creating from config object."""
-        config = DiTConfig(hidden_dim=256, depth=4, num_heads=8)
+        config = DiTConfig(
+            hidden_dim=256, depth=4, num_heads=8, mlp_ratio=4.0,
+            patch_size=(4, 4), time_embed_dim=256, conditioning_type="adaln",
+            dropout=0.0, attn_drop=0.0, learnable_pos_embed=True,
+        )
         model = DiTBackbone.from_config(
             config,
             in_channels=3,
@@ -218,7 +229,14 @@ class TestDiTBackbone:
                 hidden_dim=128,
                 depth=2,
                 num_heads=4,
+                mlp_ratio=4.0,
                 patch_size=(4, 4),
+                time_embed_dim=256,
+                conditioning_type="adaln",
+                dropout=0.0,
+                attn_drop=0.0,
+                learnable_pos_embed=True,
+                use_gradient_checkpointing=False,
             )
 
     def test_different_input_channels(self):
@@ -232,7 +250,14 @@ class TestDiTBackbone:
                 hidden_dim=128,
                 depth=2,
                 num_heads=4,
+                mlp_ratio=4.0,
                 patch_size=(4, 4),
+                time_embed_dim=256,
+                conditioning_type="adaln",
+                dropout=0.0,
+                attn_drop=0.0,
+                learnable_pos_embed=True,
+                use_gradient_checkpointing=False,
             )
             x_t = torch.randn(2, channels, 8, 32, 32)
             t = torch.rand(2)
@@ -265,7 +290,13 @@ class TestDiTWithFlowMatching:
             hidden_dim=128,
             depth=2,
             num_heads=4,
+            mlp_ratio=4.0,
             patch_size=(4, 4),
+            time_embed_dim=256,
+            conditioning_type="adaln",
+            dropout=0.0,
+            attn_drop=0.0,
+            learnable_pos_embed=True,
         )
         return FlowMatchingModel(dit, scheduler=CondOTScheduler())
 
@@ -351,7 +382,13 @@ class TestDiTWithFlowMatching:
             hidden_dim=128,
             depth=2,
             num_heads=4,
+            mlp_ratio=4.0,
             patch_size=(4, 4),
+            time_embed_dim=256,
+            conditioning_type="adaln",
+            dropout=0.0,
+            attn_drop=0.0,
+            learnable_pos_embed=True,
         )
 
         x_1 = sample_data["input_fields"]
@@ -374,21 +411,11 @@ class TestDiTModelFactory:
     def _base_config(**overrides):
         """Base config with all required params."""
         config = {
+            "size": "S",
             "in_channels": 3,
             "spatial_size": [32, 32],
             "temporal_size": 8,
             "cond_dim": 5,
-            "hidden_dim": 384,
-            "depth": 12,
-            "num_heads": 6,
-            "mlp_ratio": 4.0,
-            "patch_size": [4, 4],
-            "time_embed_dim": 256,
-            "conditioning_type": "adaln",
-            "dropout": 0.0,
-            "attn_drop": 0.0,
-            "learnable_pos_embed": True,
-            "gradient_checkpointing": False,
             "scheduler": {"type": "cond_ot", "params": {}},
         }
         config.update(overrides)
@@ -396,29 +423,17 @@ class TestDiTModelFactory:
 
     def test_factory_creates_dit(self):
         """Test factory creates DiT backbone."""
-        from physicsflow.models.model_utils import get_model
-
         model = get_model(self._base_config())
 
         assert isinstance(model, FlowMatchingModel)
         assert isinstance(model.velocity_net, DiTBackbone)
+        # Verify DiT-S architecture params
+        assert model.velocity_net.hidden_dim == 384
+        assert len(model.velocity_net.blocks) == 12
 
-    def test_factory_with_overrides(self):
-        """Test factory with config overrides."""
-        from physicsflow.models.model_utils import get_model
+    def test_factory_with_different_sizes(self):
+        """Test factory with different size presets."""
+        model = get_model(self._base_config(size="B"))
 
-        model = get_model(self._base_config(hidden_dim=512, depth=6))
-
-        assert model.velocity_net.hidden_dim == 512
-        assert len(model.velocity_net.blocks) == 6
-
-    def test_factory_with_cross_attention(self):
-        """Test factory creates cross-attention DiT."""
-        from physicsflow.models.model_utils import get_model
-
-        model = get_model(self._base_config(conditioning_type="cross_attention"))
-
-        x_1 = torch.randn(2, 3, 8, 32, 32)
-        cond = torch.randn(2, 5)
-        output = model(x_1, cond)
-        assert output.predicted_velocity.shape == x_1.shape
+        assert model.velocity_net.hidden_dim == 768
+        assert len(model.velocity_net.blocks) == 12

@@ -12,21 +12,11 @@ from physicsflow.models.dit import DiTBackbone
 def model_config() -> dict:
     """Minimal config dict for get_model."""
     return {
+        "size": "S",
         "in_channels": 2,
         "spatial_size": [16, 16],
         "temporal_size": 4,
         "cond_dim": 3,
-        "hidden_dim": 64,
-        "depth": 2,
-        "num_heads": 4,
-        "mlp_ratio": 4.0,
-        "patch_size": [2, 2],
-        "time_embed_dim": 64,
-        "conditioning_type": "adaln",
-        "dropout": 0.0,
-        "attn_drop": 0.0,
-        "learnable_pos_embed": True,
-        "gradient_checkpointing": False,
         "scheduler": {
             "type": "cond_ot",
             "params": {},
@@ -60,11 +50,7 @@ class TestGetModel:
         model = get_model(model_config)
         assert isinstance(model, FlowMatchingModel)
 
-    def test_cross_attention_conditioning(self, model_config: dict):
-        model_config["conditioning_type"] = "cross_attention"
+    def test_different_sizes(self, model_config: dict):
+        model_config["size"] = "B"
         model = get_model(model_config)
-        B, C, T, H, W = 2, 2, 4, 16, 16
-        x_1 = torch.randn(B, C, T, H, W)
-        cond = torch.randn(B, 3)
-        output = model(x_1, cond)
-        assert output.predicted_velocity.shape == (B, C, T, H, W)
+        assert model.velocity_net.hidden_dim == 768

@@ -11,7 +11,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from physicsflow.models.dit.blocks import DiTBlock, FinalLayer
-from physicsflow.models.dit.configs import DiTConfig, get_dit_config
+from config.model_sizes import DiTConfig, get_dit_config
 from physicsflow.models.dit.embeddings import PatchEmbed3D, SpatioTemporalPosEmbed
 from physicsflow.models.common import ConditioningProjection, TimeEmbedding
 
@@ -53,8 +53,6 @@ class DiTBackbone(nn.Module):
         Attention dropout rate.
     learnable_pos_embed : bool
         Whether to use learnable positional embeddings.
-    use_gradient_checkpointing : bool
-        Enable gradient checkpointing for memory efficiency.
 
     Examples
     --------
@@ -80,18 +78,17 @@ class DiTBackbone(nn.Module):
         in_channels: int,
         spatial_size: tuple[int, int],
         temporal_size: int,
-        cond_dim: int = 0,
-        hidden_dim: int = 384,
-        depth: int = 12,
-        num_heads: int = 6,
-        mlp_ratio: float = 4.0,
-        patch_size: tuple[int, int] = (2, 2),
-        time_embed_dim: int = 256,
-        conditioning_type: Literal["adaln", "cross_attention"] = "adaln",
-        dropout: float = 0.0,
-        attn_drop: float = 0.0,
-        learnable_pos_embed: bool = True,
-        use_gradient_checkpointing: bool = False,
+        cond_dim: int,
+        hidden_dim: int,
+        depth: int,
+        num_heads: int,
+        mlp_ratio: float,
+        patch_size: tuple[int, int],
+        time_embed_dim: int,
+        conditioning_type: Literal["adaln", "cross_attention"],
+        dropout: float,
+        attn_drop: float,
+        learnable_pos_embed: bool,
     ):
         super().__init__()
 
@@ -109,7 +106,6 @@ class DiTBackbone(nn.Module):
         self.hidden_dim = hidden_dim
         self.patch_size = patch_size
         self.time_embed_dim = time_embed_dim
-        self.use_gradient_checkpointing = use_gradient_checkpointing
 
         # Compute derived dimensions
         self.num_patches_h = spatial_size[0] // patch_size[0]
@@ -216,18 +212,27 @@ class DiTBackbone(nn.Module):
         if isinstance(config, str):
             config = get_dit_config(config)
 
+        config_fields = [
+            "hidden_dim", "depth", "num_heads", "mlp_ratio", "patch_size",
+            "time_embed_dim", "conditioning_type", "dropout", "attn_drop",
+            "learnable_pos_embed",
+        ]
+        config_kwargs = {
+            field: kwargs.get(field, getattr(config, field))
+            for field in config_fields
+        }
+        extra_kwargs = {
+            k: v for k, v in kwargs.items()
+            if k not in config_fields
+        }
+
         return cls(
             in_channels=in_channels,
             spatial_size=spatial_size,
             temporal_size=temporal_size,
             cond_dim=cond_dim,
-            hidden_dim=kwargs.get("hidden_dim", config.hidden_dim),
-            depth=kwargs.get("depth", config.depth),
-            num_heads=kwargs.get("num_heads", config.num_heads),
-            mlp_ratio=kwargs.get("mlp_ratio", config.mlp_ratio),
-            patch_size=kwargs.get("patch_size", config.patch_size),
-            **{k: v for k, v in kwargs.items() if k not in
-               ["hidden_dim", "depth", "num_heads", "mlp_ratio", "patch_size"]},
+            **config_kwargs,
+            **extra_kwargs,
         )
 
     def forward(
@@ -275,17 +280,7 @@ class DiTBackbone(nn.Module):
 
         # Apply transformer blocks
         for block in self.blocks:
-            if self.use_gradient_checkpointing and self.training:
-                x = torch.utils.checkpoint.checkpoint(
-                    block,
-                    x,
-                    c,
-                    T,
-                    self.num_spatial_patches,
-                    use_reentrant=False,
-                )
-            else:
-                x = block(x, c, T, self.num_spatial_patches)
+            x = block(x, c, T, self.num_spatial_patches)
 
         # Final layer: unpatchify
         v = self.final_layer(x, c, T, self.num_patches_h, self.num_patches_w)
