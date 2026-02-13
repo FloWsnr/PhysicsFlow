@@ -17,7 +17,7 @@ Sometimes, the files are already present. In that case, check if the slurm comma
 
 2. Copy the template SLURM script:
    ```bash
-   cp physicsflow/train/scripts/train_riv.sh results/<experiment_name>/
+   cp physicsflow/scripts/train_riv.sh results/<experiment_name>/
    ```
 3. Edit the SLURM script to customize:
    - `--job-name`: Set to your experiment name
