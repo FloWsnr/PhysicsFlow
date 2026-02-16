@@ -29,7 +29,10 @@ class TestGetCheckpointPath:
         assert get_checkpoint_path(tmp_path, "best") == tmp_path / "best.pt"
 
     def test_epoch_number(self, tmp_path: Path):
-        assert get_checkpoint_path(tmp_path, "5") == tmp_path / "epoch_5" / "checkpoint.pt"
+        assert get_checkpoint_path(tmp_path, "5") == tmp_path / "epoch_0005" / "checkpoint.pt"
+
+    def test_epoch_number_int(self, tmp_path: Path):
+        assert get_checkpoint_path(tmp_path, 5) == tmp_path / "epoch_0005" / "checkpoint.pt"
 
     def test_invalid_name_raises(self, tmp_path: Path):
         with pytest.raises(ValueError, match="Invalid checkpoint name"):
