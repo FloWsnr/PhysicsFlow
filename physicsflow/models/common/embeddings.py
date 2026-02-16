@@ -59,6 +59,12 @@ class TimeEmbedding(nn.Module):
 
     def __init__(self, dim: int, hidden_dim: int | None = None):
         super().__init__()
+        if dim <= 0:
+            raise ValueError(f"dim must be positive, got {dim}.")
+        if dim % 2 != 0:
+            raise ValueError(
+                f"dim must be even for sinusoidal_embedding, got {dim}."
+            )
         self.dim = dim
         hidden_dim = hidden_dim or 4 * dim
 

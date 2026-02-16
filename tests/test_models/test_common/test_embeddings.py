@@ -60,6 +60,10 @@ class TestTimeEmbedding:
         for param in time_emb.parameters():
             assert param.grad is not None
 
+    def test_odd_dim_raises(self):
+        with pytest.raises(ValueError, match="dim must be even"):
+            TimeEmbedding(dim=63)
+
 
 class TestConditioningProjection:
     def test_output_shape(self):

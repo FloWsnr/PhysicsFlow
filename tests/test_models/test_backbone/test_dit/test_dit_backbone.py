@@ -216,6 +216,16 @@ class TestDiTBackbone:
                 **_TINY,
             )
 
+    def test_invalid_hidden_dim_num_heads(self):
+        with pytest.raises(ValueError, match="must be divisible by num_heads"):
+            DiTBackbone(
+                in_channels=3,
+                spatial_size=_SPATIAL,
+                temporal_size=_TEMPORAL,
+                cond_dim=5,
+                **{**_TINY, "hidden_dim": 65, "num_heads": 8},
+            )
+
     def test_different_input_channels(self):
         """Test different input channel counts."""
         for channels in [1, 5]:

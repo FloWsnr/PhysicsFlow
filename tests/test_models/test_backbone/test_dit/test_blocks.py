@@ -64,6 +64,10 @@ class TestAttention:
         out.sum().backward()
         assert x.grad is not None
 
+    def test_invalid_head_configuration_raises(self):
+        with pytest.raises(ValueError, match="must be divisible by num_heads"):
+            Attention(dim=65, num_heads=8)
+
 
 class TestFactorizedAttention:
     """Tests for FactorizedAttention."""

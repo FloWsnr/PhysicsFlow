@@ -87,6 +87,10 @@ class Attention(nn.Module):
         proj_drop: float = 0.0,
     ):
         super().__init__()
+        if dim % num_heads != 0:
+            raise ValueError(
+                f"dim ({dim}) must be divisible by num_heads ({num_heads})."
+            )
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
 

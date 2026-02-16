@@ -97,6 +97,10 @@ class DiTBackbone(nn.Module):
             raise ValueError(
                 f"Spatial size {spatial_size} must be divisible by patch size {patch_size}"
             )
+        if hidden_dim % num_heads != 0:
+            raise ValueError(
+                f"hidden_dim ({hidden_dim}) must be divisible by num_heads ({num_heads})"
+            )
 
         # Store configuration
         self.in_channels = in_channels
