@@ -16,20 +16,26 @@ PhysicsFlow learns velocity fields to transport samples from noise to data distr
 
 ## Installation
 
-Requires Python 3.13+.
+Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync
+```
+
+For development (includes pytest and other dev tools):
+
+```bash
+uv sync --extra dev
 ```
 
 ## Usage
 
 ```bash
 # Training
-python physicsflow/train/run_training.py --config config/train.yaml
+uv run python physicsflow/train/run_training.py --config_path config/train.yaml
 
 # Run tests
-pytest tests/
+uv run pytest tests/
 ```
 
 ## Configuration

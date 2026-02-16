@@ -10,16 +10,16 @@ PhysicsFlow is a generative modeling library for physics simulations using **Flo
 
 ```bash
 # Install dependencies (uses uv package manager)
-uv sync
+uv sync --extra dev
 
 # Run all tests
-pytest tests/
+uv run pytest tests/
 
 # Run specific test file
-pytest tests/test_models/test_backbone/test_dit/test_dit_backbone.py
+uv run pytest tests/test_models/test_backbone/test_dit/test_dit_backbone.py
 
 # Run training
-python physicsflow/train/run_training.py --config config/train.yaml
+uv run python physicsflow/train/run_training.py --config_path config/train.yaml
 ```
 
 ## Architecture
