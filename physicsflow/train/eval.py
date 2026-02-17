@@ -114,6 +114,7 @@ class Evaluator:
             max(1, math.ceil(n_total_batches * self.eval_fraction)),
         )
         log_interval = max(1, 10 ** math.floor(math.log10(max(1, n_batches // 100))))
+        model_input_dtype = next(self.model.parameters()).dtype
 
         for i, data in enumerate(self.dataloader):
             if (i + 1) % log_interval == 0 or i == 0:
@@ -126,6 +127,10 @@ class Evaluator:
             }
             t1 = data["output_fields"]
             cond = data["constant_scalars"]
+            if t1.is_floating_point():
+                t1 = t1.to(dtype=model_input_dtype)
+            if cond is not None and cond.is_floating_point():
+                cond = cond.to(dtype=model_input_dtype)
 
             with torch.autocast(
                 device_type=self.device.type,

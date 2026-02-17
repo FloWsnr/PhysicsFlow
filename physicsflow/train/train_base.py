@@ -322,6 +322,7 @@ class Trainer:
             self.total_updates - self.state.batches_trained,
         )
         self.model.train()
+        model_input_dtype = next(self.model.parameters()).dtype
         if self.ddp_enabled:
             self.train_dataloader.sampler.set_epoch(epoch)
 
@@ -335,6 +336,10 @@ class Trainer:
             }
             x_1 = data["output_fields"]
             cond = data["constant_scalars"]
+            if x_1.is_floating_point():
+                x_1 = x_1.to(dtype=model_input_dtype)
+            if cond is not None and cond.is_floating_point():
+                cond = cond.to(dtype=model_input_dtype)
 
             self.optimizer.zero_grad()
             with torch.autocast(

@@ -63,6 +63,14 @@ class PhysicsDataset(WellDataset):
         )
         start_time = well_dict["input_time_grid"][-1]
         scalars = well_dict["constant_scalars"]  # shape (num_scalars,)
+
+        # Keep conditioning scalars in the same floating dtype as fields to avoid
+        # mixed-precision mismatches in the conditioning projection.
+        if torch.is_floating_point(well_dict["output_fields"]):
+            target_dtype = well_dict["output_fields"].dtype
+            scalars = scalars.to(dtype=target_dtype)
+            start_time = start_time.to(dtype=target_dtype)
+
         well_dict["constant_scalars"] = torch.cat(
             [scalars, start_time.unsqueeze(0)], dim=0
         )
