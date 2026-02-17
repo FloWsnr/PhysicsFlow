@@ -76,10 +76,34 @@ def test_eval(
         metrics=metrics,
         eval_dir=tmp_path,
     )
-    losses = evaluator.eval()
+    eval_metrics = evaluator.eval()
 
-    for metric_name, metric_value in losses.items():
-        assert metric_value.item() != 0.0
+    # user-provided metrics still work
+    for metric_name in metrics:
+        assert metric_name in eval_metrics
+        assert torch.isfinite(eval_metrics[metric_name])
+
+    # built-in flow-matching metrics are always included
+    assert Evaluator.BUILTIN_REL_L2_KEY in eval_metrics
+    assert Evaluator.BUILTIN_COSINE_ERROR_KEY in eval_metrics
+    assert Evaluator.BUILTIN_MMD_KEY in eval_metrics
+    assert torch.isfinite(eval_metrics[Evaluator.BUILTIN_REL_L2_KEY])
+    assert torch.isfinite(eval_metrics[Evaluator.BUILTIN_COSINE_ERROR_KEY])
+    assert torch.isfinite(eval_metrics[Evaluator.BUILTIN_MMD_KEY])
+
+    # t-binned metrics are reported for each bin; bins without samples are NaN.
+    rel_l2_bin_keys = [
+        k for k in eval_metrics if k.startswith(f"{Evaluator.BUILTIN_REL_L2_KEY}_t")
+    ]
+    cosine_bin_keys = [
+        k
+        for k in eval_metrics
+        if k.startswith(f"{Evaluator.BUILTIN_COSINE_ERROR_KEY}_t")
+    ]
+    assert len(rel_l2_bin_keys) == evaluator.time_bin_count
+    assert len(cosine_bin_keys) == evaluator.time_bin_count
+    assert any(torch.isfinite(eval_metrics[k]) for k in rel_l2_bin_keys)
+    assert any(torch.isfinite(eval_metrics[k]) for k in cosine_bin_keys)
 
 
 def test_eval_tiny_fraction_uses_at_least_one_batch(
@@ -94,9 +118,10 @@ def test_eval_tiny_fraction_uses_at_least_one_batch(
         metrics=metrics,
         eval_dir=tmp_path,
         eval_fraction=0.1,
+        time_bin_count=1,
     )
-    losses = evaluator.eval()
-    for metric_value in losses.values():
+    eval_metrics = evaluator.eval()
+    for metric_value in eval_metrics.values():
         assert torch.isfinite(metric_value)
 
 

@@ -125,6 +125,8 @@ class TestFlowMatchingModel:
         assert output.predicted_velocity.shape == expected_shape
         assert output.target_velocity.shape == expected_shape
         assert output.x_t.shape == expected_shape
+        assert output.t.shape == (expected_shape[0],)
+        assert torch.all((output.t >= 0.0) & (output.t <= 1.0))
 
     def test_forward_velocities_exist(self, flow_model, sample_data):
         """Test that predicted/target velocities are returned."""

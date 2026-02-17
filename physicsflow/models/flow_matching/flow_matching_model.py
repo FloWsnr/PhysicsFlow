@@ -26,11 +26,14 @@ class FlowMatchingOutput:
         Ground truth velocity.
     x_t : Tensor
         Noised samples at time t.
+    t : Tensor
+        Sampled time values in [0, 1], shape (B,).
     """
 
     predicted_velocity: Tensor
     target_velocity: Tensor
     x_t: Tensor
+    t: Tensor
 
 
 class FlowMatchingModel(nn.Module):
@@ -109,6 +112,7 @@ class FlowMatchingModel(nn.Module):
             predicted_velocity=v_pred,
             target_velocity=v_target,
             x_t=x_t,
+            t=t,
         )
 
     @property
